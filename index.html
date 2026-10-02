@@ -1,0 +1,1035 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="運行ダイヤ">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='36' fill='%231F3A5F'/%3E%3Crect x='30' y='50' width='60' height='30' rx='4' fill='%23FF99FF'/%3E%3Crect x='96' y='50' width='54' height='30' rx='4' fill='%23B7DEE8'/%3E%3Crect x='44' y='100' width='70' height='30' rx='4' fill='%23FFC000'/%3E%3Crect x='120' y='100' width='30' height='30' rx='4' fill='%2392D050'/%3E%3C/svg%3E">
+<title>運行ダイヤ編集ボード</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  --paper:#FAFAF7; --chrome:#EDF0F1; --chrome2:#E2E7E9; --ink:#22313A; --ink-soft:#5B6A72;
+  --line:#DCE0E2; --line-strong:#A4AEB3; --ui:#1F3A5F; --ui-ink:#FFFFFF; --warn:#C8102E;
+  --flight:#2F6FB3; --ship:#11817A; --focus:#F2A900; --panel:#FFFFFF;
+  --block-ink:#1B1B1B;
+  font-family:"BIZ UDPGothic","Hiragino Sans","Yu Gothic","Meiryo",sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#1B2125; --chrome:#232A2F; --chrome2:#2B3338; --ink:#E3E8EA; --ink-soft:#9AA7AE;
+    --line:#30393F; --line-strong:#56636A; --ui:#8DB4E2; --ui-ink:#10202F; --warn:#FF5A6E;
+    --flight:#7DB3EC; --ship:#5CCFC5; --panel:#20272B;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#1B2125; --chrome:#232A2F; --chrome2:#2B3338; --ink:#E3E8EA; --ink-soft:#9AA7AE;
+  --line:#30393F; --line-strong:#56636A; --ui:#8DB4E2; --ui-ink:#10202F; --warn:#FF5A6E;
+  --flight:#7DB3EC; --ship:#5CCFC5; --panel:#20272B;
+}
+*,*::before,*::after{box-sizing:inherit}
+html,body{height:100%;margin:0}
+body{background:var(--chrome);color:var(--ink);font-size:14px;line-height:1.5;display:flex;flex-direction:column;overflow:hidden}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+html{touch-action:manipulation;-webkit-text-size-adjust:100%}
+@media (pointer:coarse){
+  .btn{padding:8px 12px;font-size:14px}
+  .run .grip{width:18px}
+  .run .grip::after{right:5px}
+  .fld input,.fld select,.stoprow input{padding:7px 8px;font-size:16px}
+  .stoprow{grid-template-columns:22px 1fr 70px 34px}
+  .menu button{padding:10px 10px;font-size:15px}
+}
+.nudge{display:flex;gap:4px;margin:-2px 0 8px 84px;flex-wrap:wrap}
+.nudge .btn{padding:3px 8px;font-size:12px}
+:focus-visible{outline:3px solid var(--focus);outline-offset:1px}
+
+/* header */
+.top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 14px;background:var(--chrome);border-bottom:1px solid var(--line-strong)}
+.top h1{font-size:17px;margin:0 8px 0 0;letter-spacing:.04em;white-space:nowrap}
+.grp{display:flex;align-items:center;gap:4px}
+.sep{width:1px;height:24px;background:var(--line-strong);margin:0 4px}
+.btn{border:1px solid var(--line-strong);background:var(--panel);border-radius:6px;padding:5px 10px;font-size:13px;white-space:nowrap}
+.btn:hover{border-color:var(--ui)}
+.btn.primary{background:var(--ui);color:var(--ui-ink);border-color:var(--ui)}
+.btn.on{background:var(--ui);color:var(--ui-ink);border-color:var(--ui)}
+.btn:disabled{opacity:.4;cursor:default}
+select.plan{border:1px solid var(--line-strong);border-radius:6px;padding:5px 8px;background:var(--panel);max-width:220px}
+.status{font-size:12px;color:var(--ink-soft);margin-left:auto;white-space:nowrap}
+.zoom{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-soft)}
+.zoom input{width:90px}
+
+/* layout */
+.main{flex:1;display:flex;min-height:0}
+.boardwrap{flex:1;overflow:auto;background:var(--paper);position:relative}
+.board{position:relative;user-select:none;-webkit-user-select:none}
+.side[hidden]{display:none}
+.side{width:340px;flex:none;background:var(--panel);border-left:1px solid var(--line-strong);overflow-y:auto;padding:14px 16px 40px}
+@media (max-width:900px){
+  .main{flex-direction:column}
+  .side{width:auto;height:42%;border-left:0;border-top:1px solid var(--line-strong)}
+}
+
+/* ruler & rows */
+.ruler{position:sticky;top:0;z-index:6;display:flex;height:30px;background:var(--paper);border-bottom:1px solid var(--line-strong)}
+.corner{position:sticky;left:0;z-index:7;background:var(--paper);border-right:1px solid var(--line-strong);font-size:11px;color:var(--ink-soft);display:flex;align-items:flex-end;padding:0 8px 3px}
+.ticks{position:relative}
+.tick{position:absolute;bottom:3px;transform:translateX(-50%);font-size:13px;font-weight:700}
+.tick.half{font-size:10px;font-weight:400;color:var(--ink-soft)}
+.row{display:flex;border-bottom:1px solid var(--line-strong)}
+.lab{position:sticky;left:0;z-index:5;background:var(--chrome);border-right:1px solid var(--line-strong);padding:8px 8px;display:flex;flex-direction:column;justify-content:center}
+.lab .nm{font-size:16px;font-weight:700;letter-spacing:.05em}
+.lab .tot{font-size:11px;color:var(--ink-soft);line-height:1.45}
+.track{position:relative}
+.grid{position:absolute;inset:0;pointer-events:none}
+.band{position:absolute;top:0;bottom:0;pointer-events:none;opacity:.10;border-right:1.5px solid}
+.band.flight{background:var(--flight);border-color:var(--flight)}
+.band.ship{background:var(--ship);border-color:var(--ship)}
+.evlane .band{opacity:.06}
+.evlane .lab{background:var(--chrome2)}
+.evbar{position:absolute;height:18px;border-radius:9px;font-size:11px;line-height:18px;padding:0 6px;white-space:nowrap;color:#fff;overflow:visible}
+.evbar.flight{background:var(--flight)}
+.evbar.ship{background:var(--ship)}
+.evbar span{position:absolute;left:calc(100% + 4px);top:0;color:var(--ink);font-weight:700}
+
+/* run blocks */
+.run{position:absolute;z-index:1;top:9px;border:1.5px solid #3c3c3c;border-radius:3px;background:var(--c);color:var(--block-ink);cursor:grab;overflow:hidden;touch-action:none}
+.run:hover{box-shadow:0 0 0 2px rgba(31,58,95,.35)}
+.run.sel{box-shadow:0 0 0 3px var(--focus);z-index:3}
+.run.clash{border-color:var(--warn);background-image:repeating-linear-gradient(135deg,transparent 0 6px,rgba(200,16,46,.25) 6px 9px)}
+.run.dragging{cursor:grabbing;opacity:.85;z-index:4}
+.run .mins{position:relative;height:15px;border-bottom:1.5px dashed #3c3c3c;font-size:11px;font-weight:700;line-height:15px}
+.run .mins i,.run .stp i{position:absolute;font-style:normal;white-space:nowrap}
+.run .stp{position:relative;height:44px;font-size:12px}
+.run .stp i{top:2px;line-height:13px;text-align:center}
+.run .note{position:absolute;left:6px;right:6px;top:12px;font-size:12px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.run .foot{display:flex;justify-content:space-between;align-items:baseline;gap:4px;border-top:1.5px solid #3c3c3c;padding:0 4px;height:21px;font-size:11px;background:rgba(255,255,255,.55);white-space:nowrap;overflow:hidden}
+.run .foot b{font-size:12px}
+.run .grip{position:absolute;right:0;top:0;bottom:0;width:8px;cursor:ew-resize}
+.run .grip::after{content:"";position:absolute;right:2px;top:50%;width:3px;height:18px;margin-top:-9px;border-left:1px solid #555;border-right:1px solid #555}
+.run.narrow .stp i,.run.narrow .foot span{display:none}
+.run.narrow .foot{justify-content:center;padding:0}
+.run.narrow .foot b{font-size:10px;writing-mode:horizontal-tb}
+
+.overlay{position:absolute;left:0;top:0;pointer-events:none;z-index:4}
+.crosshair{position:absolute;top:0;width:0;border-left:1px solid var(--ui);pointer-events:none;z-index:8;opacity:.7}
+.crosshair b{position:sticky;top:6px;display:inline-block;transform:translateX(-50%);background:var(--ui);color:var(--ui-ink);font-size:11px;padding:0 5px;border-radius:3px}
+.tip{position:fixed;z-index:50;background:var(--ink);color:var(--paper);font-size:12px;padding:3px 8px;border-radius:4px;pointer-events:none;white-space:nowrap}
+
+/* side panel */
+.side h2{font-size:15px;margin:0 0 10px}
+.side h3{font-size:13px;margin:18px 0 6px;color:var(--ink-soft);font-weight:700}
+.side p,.side li{font-size:13px}
+.side ul{padding-left:18px;margin:6px 0}
+.fld{display:grid;grid-template-columns:76px 1fr;align-items:center;gap:6px 8px;margin-bottom:6px}
+.fld label{font-size:12px;color:var(--ink-soft)}
+.fld input,.fld select,.stoprow input{border:1px solid var(--line-strong);border-radius:5px;padding:4px 6px;background:var(--paper);width:100%;min-width:0}
+.stoprow{display:grid;grid-template-columns:22px 1fr 64px 26px;gap:4px;align-items:center;margin-bottom:4px}
+.stoprow.minor input{color:var(--ink-soft);font-size:12px}
+.stoprow .k{font-size:11px;color:var(--ink-soft);text-align:center}
+.stoprow .x{border:0;background:none;color:var(--ink-soft);font-size:16px;padding:0}
+.stoprow .fixed{font-size:12px;color:var(--ink-soft);text-align:right;padding-right:4px}
+.btnrow{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.conn{font-size:12.5px;padding:6px 8px;border-left:3px solid var(--ui);background:var(--chrome);margin-bottom:5px;border-radius:0 4px 4px 0}
+.conn.flight{border-color:var(--flight)}
+.conn.ship{border-color:var(--ship)}
+.conn.warn{border-color:var(--warn)}
+.muted{color:var(--ink-soft)}
+.swatch{display:inline-block;width:12px;height:12px;border-radius:2px;border:1px solid #555;vertical-align:-1px;margin-right:4px}
+.alert{color:var(--warn);font-weight:700;font-size:13px}
+kbd{font-family:inherit;border:1px solid var(--line-strong);border-bottom-width:2px;border-radius:3px;padding:0 4px;font-size:11px;background:var(--paper)}
+
+/* menu & dialogs */
+.menu{position:fixed;z-index:40;background:var(--panel);border:1px solid var(--line-strong);border-radius:6px;box-shadow:0 6px 18px rgba(0,0,0,.18);padding:4px;min-width:150px}
+.menu button{display:flex;align-items:center;gap:6px;width:100%;text-align:left;border:0;background:none;padding:6px 8px;border-radius:4px;font-size:13px}
+.menu button:hover,.menu button:focus{background:var(--chrome)}
+.menu .t{font-size:11px;color:var(--ink-soft);padding:4px 8px}
+dialog{border:1px solid var(--line-strong);border-radius:8px;background:var(--panel);color:var(--ink);padding:16px 18px;max-width:min(760px,94vw);width:100%}
+dialog::backdrop{background:rgba(10,20,30,.4)}
+dialog h2{margin:0 0 10px;font-size:16px}
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl th{font-size:11px;color:var(--ink-soft);text-align:left;font-weight:700;padding:3px 4px}
+.tbl td{padding:2px 4px}
+.tbl input,.tbl select{border:1px solid var(--line-strong);border-radius:4px;padding:3px 5px;background:var(--paper);width:100%;min-width:0}
+.wt tr.hit td{background:color-mix(in srgb,var(--ui) 8%,transparent)}
+.wt td{border-bottom:1px solid var(--line);padding:4px}
+.pill{display:inline-block;font-size:11.5px;padding:1px 7px;border-radius:9px;background:var(--chrome2);margin:1px 0;white-space:nowrap}
+.pill.zero{background:var(--warn);color:#fff}
+.tbl input[type=color]{padding:0;height:26px;width:40px}
+.tblwrap{max-height:60vh;overflow:auto}
+
+#printHead{display:none}
+@media print{
+  *,*::before,*::after{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;color-adjust:exact!important}
+  :root,:root[data-theme="dark"],:root:not([data-theme="light"]){
+    --paper:#FFFFFF; --chrome:#EDF0F1; --chrome2:#E2E7E9; --ink:#22313A; --ink-soft:#5B6A72;
+    --line:#D5DADD; --line-strong:#8E999F; --ui:#1F3A5F; --ui-ink:#FFFFFF; --warn:#C8102E;
+    --flight:#2F6FB3; --ship:#11817A; --panel:#FFFFFF;
+    padding:0!important;
+  }
+  html,body{overflow:visible!important;height:auto!important;background:#fff!important}
+  body{display:block}
+  .top,.side,.crosshair,.tip,.menu,dialog{display:none!important}
+  .main,.boardwrap{overflow:visible!important;display:block!important;height:auto!important}
+  .boardwrap{background:#fff}
+  .ruler,.lab,.corner{position:static!important}
+  .run.sel{box-shadow:none}
+  .run:hover{box-shadow:none}
+  .run .grip{display:none}
+  #printHead{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap;margin:0 0 6px;font-size:12px;color:#22313A}
+  #printHead h1{font-size:18px;margin:0}
+  #printHead .lg{display:flex;gap:10px;flex-wrap:wrap;margin-left:auto}
+  #printHead .lg span{white-space:nowrap}
+  .row,.ruler{break-inside:avoid}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>運行ダイヤ編集ボード</h1>
+  <div class="grp">
+    <select class="plan" id="planSel" aria-label="案を選ぶ"></select>
+    <button class="btn" id="bNew">新しい案</button>
+    <button class="btn" id="bRename">名前変更</button>
+    <button class="btn" id="bDelPlan">案を削除</button>
+  </div>
+  <span class="sep"></span>
+  <div class="grp">
+    <button class="btn" id="bUndo" title="元に戻す (Ctrl+Z)">元に戻す</button>
+    <button class="btn" id="bRedo" title="やり直し (Ctrl+Y)">やり直し</button>
+  </div>
+  <span class="sep"></span>
+  <div class="grp" role="group" aria-label="ドラッグの刻み">
+    <button class="btn" id="bSnap1">1分刻み</button>
+    <button class="btn" id="bSnap5">5分刻み</button>
+  </div>
+  <button class="btn" id="bConnAll">接続をすべて表示</button>
+  <button class="btn" id="bWait">待ち合わせ表</button>
+  <div class="zoom"><label for="zoom">拡大</label><input type="range" id="zoom" min="1" max="5" step="0.1"></div>
+  <span class="sep"></span>
+  <div class="grp">
+    <button class="btn" id="bRoutes">路線・色</button>
+    <button class="btn" id="bEvents">飛行機・船</button>
+    <button class="btn" id="bRows">系統（行）</button>
+  </div>
+  <span class="sep"></span>
+  <div class="grp">
+    <button class="btn" id="bCsv">Excel用CSV</button>
+    <button class="btn" id="bJson">バックアップ</button>
+    <button class="btn" id="bImport">読み込み</button>
+    <button class="btn" id="bPrint">印刷</button>
+  </div>
+  <button class="btn" id="bSide" aria-pressed="true">編集パネル</button>
+  <span class="status" id="status">準備中…</span>
+  <input type="file" id="fileIn" accept=".json,application/json" hidden>
+</header>
+<div id="printHead"></div>
+<div class="main">
+  <div class="boardwrap" id="wrap"><div class="board" id="board"></div></div>
+  <aside class="side" id="side" aria-live="polite"></aside>
+</div>
+<div class="tip" id="tip" hidden></div>
+
+<dialog id="dlg"></dialog>
+
+<script>
+(() => {
+"use strict";
+/* ============ constants & template data ============ */
+const T0 = 6*60, T1 = 19*60;            // board span 6:00–19:00
+const LABEL_W = 132, RULER_H = 30, EV_H = 74, ROW_H = 102, BLOCK_H = 84;
+const LS_KEY = "okibus-dia-board-v1";
+
+const DEFAULT_ROUTES = [
+  {name:"空港線", color:"#FF99FF", std:58, km:23.4, kind:"定期", pat:{from:"知名",to:"空港",vias:[{n:"和泊",o:36}]}},
+  {name:"国頭線", color:"#B7DEE8", std:52, km:20.7, kind:"定期", pat:{from:"知名",to:"国頭",vias:[{n:"和泊",o:36}]}},
+  {name:"永嶺線", color:"#FFC000", std:64, km:28.4, kind:"定期", pat:{from:"和泊",to:"知名",vias:[{n:"新城",o:25}]}},
+  {name:"後蘭線", color:"#92D050", std:59, km:26,   kind:"定期", pat:{from:"和泊",to:"知名",vias:[{n:"新城",o:28}]}},
+  {name:"ガジマル線", color:"#FCE4D6", std:50, km:21.5, kind:"定期", pat:{from:"知名",to:"和泊",vias:[{n:"内城",o:23}]}},
+  {name:"回送", color:"#D9D9D9", std:10, km:5.5, kind:"回送", pat:{from:"和泊",to:"国頭",vias:[]}},
+  {name:"デマンド", color:"#DDEBF7", std:120, km:null, kind:"その他", pat:{from:"",to:"",vias:[]}},
+  {name:"昼休憩", color:"#8DB4E2", std:60, km:null, kind:"その他", pat:{from:"",to:"",vias:[]}},
+  {name:"オペレーター", color:"#E4DFEC", std:60, km:null, kind:"その他", pat:{from:"",to:"",vias:[]}},
+];
+const DEFAULT_TS = ["和泊","内城","ガジマル辻","知名","空港","国頭"];
+const DEFAULT_ROWS = ["和泊A","知名A","C","和泊デマンド","知名デマンド","E"];
+const DEFAULT_EVENTS = [
+  {label:"鹿1", kind:"flight", place:"空港", s:530, e:560},
+  {label:"沖縄", kind:"flight", place:"空港", s:745, e:775},
+  {label:"鹿2", kind:"flight", place:"空港", s:845, e:875},
+  {label:"沖縄", kind:"flight", place:"空港", s:920, e:950},
+  {label:"鹿3", kind:"flight", place:"空港", s:990, e:1020},
+  {label:"船下", kind:"ship", place:"和泊港", s:690, e:720},
+  {label:"船上", kind:"ship", place:"和泊港", s:850, e:880},
+  {label:"船上(知名)", kind:"ship", place:"知名港", s:890, e:905},
+];
+const m = s => { const [h,mi]=s.split(":").map(Number); return h*60+mi; };
+const R = (row,route,dep,from,vias,to,dur,km,note) => ({row,route,dep:m(dep),from,vias:vias.map(([n,o])=>({n,o})),to,dur,km:km??null,note:note||""});
+// R8.3.1 時刻表（修正版）から作成した全停留所データ
+const R8_RUNS = [{"row":"知名A","route":"空港線","dep":455,"from":"知名","to":"空港","dur":58,"km":null,"note":"","vias":[{"n":"大蔵医院","o":1},{"n":"小米","o":1},{"n":"町体前","o":3},{"n":"知名役場前","o":6},{"n":"徳洲会病院","o":8},{"n":"瀬利覚","o":10},{"n":"知中前","o":11},{"n":"黒貫","o":12},{"n":"芦清良","o":14},{"n":"ガジマル辻","o":15},{"n":"屋者","o":16},{"n":"余多","o":18},{"n":"高校前","o":19},{"n":"古里","o":21},{"n":"皆川","o":23},{"n":"皆川入口","o":25},{"n":"南栄前","o":27},{"n":"Ａコープ前","o":29},{"n":"タラソ","o":32},{"n":"和泊役場","o":35},{"n":"和泊","o":36},{"n":"手々知名","o":38},{"n":"ホテルシーワールド","o":41},{"n":"和中前","o":43},{"n":"喜美留","o":45},{"n":"西原","o":48},{"n":"国頭","o":54}]},{"row":"和泊A","route":"空港線","dep":545,"from":"知名","to":"空港","dur":58,"km":null,"note":"","vias":[{"n":"大蔵医院","o":1},{"n":"小米","o":1},{"n":"町体前","o":3},{"n":"知名役場前","o":6},{"n":"徳洲会病院","o":8},{"n":"瀬利覚","o":10},{"n":"知中前","o":11},{"n":"黒貫","o":12},{"n":"芦清良","o":14},{"n":"ガジマル辻","o":15},{"n":"屋者","o":16},{"n":"余多","o":18},{"n":"高校前","o":19},{"n":"古里","o":21},{"n":"皆川","o":23},{"n":"皆川入口","o":25},{"n":"南栄前","o":27},{"n":"Ａコープ前","o":29},{"n":"タラソ","o":32},{"n":"和泊役場","o":35},{"n":"和泊","o":36},{"n":"手々知名","o":38},{"n":"ホテルシーワールド","o":41},{"n":"和中前","o":43},{"n":"喜美留","o":45},{"n":"西原","o":48},{"n":"国頭","o":54}]},{"row":"C","route":"空港線","dep":625,"from":"知名","to":"空港","dur":58,"km":null,"note":"","vias":[{"n":"大蔵医院","o":1},{"n":"小米","o":1},{"n":"町体前","o":3},{"n":"知名役場前","o":6},{"n":"徳洲会病院","o":8},{"n":"瀬利覚","o":10},{"n":"知中前","o":11},{"n":"黒貫","o":12},{"n":"芦清良","o":14},{"n":"ガジマル辻","o":15},{"n":"屋者","o":16},{"n":"余多","o":18},{"n":"高校前","o":19},{"n":"古里","o":21},{"n":"皆川","o":23},{"n":"皆川入口","o":25},{"n":"南栄前","o":27},{"n":"Ａコープ前","o":29},{"n":"タラソ","o":32},{"n":"和泊役場","o":35},{"n":"和泊","o":36},{"n":"手々知名","o":38},{"n":"ホテルシーワールド","o":41},{"n":"和中前","o":43},{"n":"喜美留","o":45},{"n":"西原","o":48},{"n":"国頭","o":54}]},{"row":"知名A","route":"空港線","dep":685,"from":"知名","to":"空港","dur":58,"km":null,"note":"","vias":[{"n":"大蔵医院","o":1},{"n":"小米","o":1},{"n":"町体前","o":3},{"n":"知名役場前","o":6},{"n":"徳洲会病院","o":8},{"n":"瀬利覚","o":10},{"n":"知中前","o":11},{"n":"黒貫","o":12},{"n":"芦清良","o":14},{"n":"ガジマル辻","o":15},{"n":"屋者","o":16},{"n":"余多","o":18},{"n":"高校前","o":19},{"n":"古里","o":21},{"n":"皆川","o":23},{"n":"皆川入口","o":25},{"n":"南栄前","o":27},{"n":"Ａコープ前","o":29},{"n":"タラソ","o":32},{"n":"和泊役場","o":35},{"n":"和泊","o":36},{"n":"手々知名","o":38},{"n":"ホテルシーワールド","o":41},{"n":"和中前","o":43},{"n":"喜美留","o":45},{"n":"西原","o":48},{"n":"国頭","o":54}]},{"row":"和泊A","route":"空港線","dep":750,"from":"知名","to":"空港","dur":58,"km":null,"note":"","vias":[{"n":"大蔵医院","o":1},{"n":"小米","o":1},{"n":"町体前","o":3},{"n":"知名役場前","o":6},{"n":"徳洲会病院","o":8},{"n":"瀬利覚","o":10},{"n":"知中前","o":11},{"n":"黒貫","o":12},{"n":"芦清良","o":14},{"n":"ガジマル辻","o":15},{"n":"屋者","o":16},{"n":"余多","o":18},{"n":"高校前","o":19},{"n":"古里","o":21},{"n":"皆川","o":23},{"n":"皆川入口","o":25},{"n":"南栄前","o":27},{"n":"Ａコープ前","o":29},{"n":"タラソ","o":32},{"n":"和泊役場","o":35},{"n":"和泊","o":36},{"n":"手々知名","o":38},{"n":"ホテルシーワールド","o":41},{"n":"和中前","o":43},{"n":"喜美留","o":45},{"n":"西原","o":48},{"n":"国頭","o":54}]},{"row":"C","route":"空港線","dep":840,"from":"知名","to":"空港","dur":58,"km":null,"note":"","vias":[{"n":"大蔵医院","o":1},{"n":"小米","o":1},{"n":"町体前","o":3},{"n":"知名役場前","o":6},{"n":"徳洲会病院","o":8},{"n":"瀬利覚","o":10},{"n":"知中前","o":11},{"n":"黒貫","o":12},{"n":"芦清良","o":14},{"n":"ガジマル辻","o":15},{"n":"屋者","o":16},{"n":"余多","o":18},{"n":"高校前","o":19},{"n":"古里","o":21},{"n":"皆川","o":23},{"n":"皆川入口","o":25},{"n":"南栄前","o":27},{"n":"Ａコープ前","o":29},{"n":"タラソ","o":32},{"n":"和泊役場","o":35},{"n":"和泊","o":36},{"n":"手々知名","o":38},{"n":"ホテルシーワールド","o":41},{"n":"和中前","o":43},{"n":"喜美留","o":45},{"n":"西原","o":48},{"n":"国頭","o":54}]},{"row":"知名A","route":"空港線","dep":920,"from":"知名","to":"空港","dur":58,"km":null,"note":"","vias":[{"n":"大蔵医院","o":1},{"n":"小米","o":1},{"n":"町体前","o":3},{"n":"知名役場前","o":6},{"n":"徳洲会病院","o":8},{"n":"瀬利覚","o":10},{"n":"知中前","o":11},{"n":"黒貫","o":12},{"n":"芦清良","o":14},{"n":"ガジマル辻","o":15},{"n":"屋者","o":16},{"n":"余多","o":18},{"n":"高校前","o":19},{"n":"古里","o":21},{"n":"皆川","o":23},{"n":"皆川入口","o":25},{"n":"南栄前","o":27},{"n":"Ａコープ前","o":29},{"n":"タラソ","o":32},{"n":"和泊役場","o":35},{"n":"和泊","o":36},{"n":"手々知名","o":38},{"n":"ホテルシーワールド","o":41},{"n":"和中前","o":43},{"n":"喜美留","o":45},{"n":"西原","o":48},{"n":"国頭","o":54}]},{"row":"C","route":"国頭線","dep":970,"from":"知名","to":"国頭","dur":52,"km":null,"note":"","vias":[{"n":"大蔵医院","o":1},{"n":"小米","o":1},{"n":"町体前","o":3},{"n":"知名役場前","o":6},{"n":"徳洲会病院","o":8},{"n":"瀬利覚","o":10},{"n":"知中前","o":11},{"n":"黒貫","o":12},{"n":"芦清良","o":14},{"n":"ガジマル辻","o":15},{"n":"屋者","o":16},{"n":"余多","o":18},{"n":"高校前","o":19},{"n":"古里","o":21},{"n":"皆川入口","o":23},{"n":"南栄前","o":25},{"n":"Ａコープ前","o":27},{"n":"タラソ","o":30},{"n":"和泊役場","o":33},{"n":"和泊","o":34},{"n":"手々知名","o":36},{"n":"ホテルシーワールド","o":39},{"n":"和中前","o":41},{"n":"喜美留","o":43},{"n":"西原","o":46}]},{"row":"和泊A","route":"国頭線","dep":1000,"from":"知名","to":"国頭","dur":52,"km":null,"note":"","vias":[{"n":"大蔵医院","o":1},{"n":"小米","o":1},{"n":"町体前","o":3},{"n":"知名役場前","o":6},{"n":"徳洲会病院","o":8},{"n":"瀬利覚","o":10},{"n":"知中前","o":11},{"n":"黒貫","o":12},{"n":"芦清良","o":14},{"n":"ガジマル辻","o":15},{"n":"屋者","o":16},{"n":"余多","o":18},{"n":"高校前","o":19},{"n":"古里","o":21},{"n":"皆川入口","o":23},{"n":"南栄前","o":25},{"n":"Ａコープ前","o":27},{"n":"タラソ","o":30},{"n":"和泊役場","o":33},{"n":"和泊","o":34},{"n":"手々知名","o":36},{"n":"ホテルシーワールド","o":39},{"n":"和中前","o":41},{"n":"喜美留","o":43},{"n":"西原","o":46}]},{"row":"和泊A","route":"国頭線","dep":460,"from":"国頭","to":"知名","dur":52,"km":null,"note":"","vias":[{"n":"西原","o":6},{"n":"喜美留","o":9},{"n":"和中前","o":11},{"n":"ホテルシーワールド","o":13},{"n":"手々知名","o":16},{"n":"和泊","o":17},{"n":"和泊役場","o":19},{"n":"タラソ","o":22},{"n":"Aコープ前","o":25},{"n":"南栄前","o":27},{"n":"皆川入口","o":29},{"n":"古里","o":31},{"n":"高校前","o":33},{"n":"余多","o":34},{"n":"屋者","o":36},{"n":"ガジマル辻","o":37},{"n":"芦清良","o":38},{"n":"黒貫","o":40},{"n":"知中前","o":41},{"n":"瀬利覚","o":42},{"n":"知名役場前","o":45},{"n":"徳洲会病院","o":47},{"n":"町体前","o":49},{"n":"小米","o":51},{"n":"大蔵医院","o":51}]},{"row":"C","route":"国頭線","dep":510,"from":"国頭","to":"知名","dur":52,"km":null,"note":"","vias":[{"n":"西原","o":6},{"n":"喜美留","o":9},{"n":"和中前","o":11},{"n":"ホテルシーワールド","o":13},{"n":"手々知名","o":16},{"n":"和泊","o":17},{"n":"和泊役場","o":19},{"n":"タラソ","o":22},{"n":"Aコープ前","o":25},{"n":"南栄前","o":27},{"n":"皆川入口","o":29},{"n":"古里","o":31},{"n":"高校前","o":33},{"n":"余多","o":34},{"n":"屋者","o":36},{"n":"ガジマル辻","o":37},{"n":"芦清良","o":38},{"n":"黒貫","o":40},{"n":"知中前","o":41},{"n":"瀬利覚","o":42},{"n":"知名役場前","o":45},{"n":"徳洲会病院","o":47},{"n":"町体前","o":49},{"n":"小米","o":51},{"n":"大蔵医院","o":51}]},{"row":"知名A","route":"空港線","dep":565,"from":"空港","to":"知名","dur":58,"km":null,"note":"","vias":[{"n":"国頭","o":4},{"n":"西原","o":10},{"n":"喜美留","o":13},{"n":"和中前","o":15},{"n":"ホテルシーワールド","o":17},{"n":"手々知名","o":20},{"n":"和泊","o":21},{"n":"和泊役場","o":23},{"n":"タラソ","o":26},{"n":"Aコープ前","o":29},{"n":"南栄前","o":31},{"n":"皆川入口","o":33},{"n":"皆川","o":35},{"n":"古里","o":37},{"n":"高校前","o":39},{"n":"余多","o":40},{"n":"屋者","o":42},{"n":"ガジマル辻","o":43},{"n":"芦清良","o":44},{"n":"黒貫","o":46},{"n":"知中前","o":47},{"n":"瀬利覚","o":48},{"n":"知名役場前","o":51},{"n":"徳洲会病院","o":53},{"n":"町体前","o":55},{"n":"小米","o":57},{"n":"大蔵医院","o":57}]},{"row":"和泊A","route":"空港線","dep":615,"from":"空港","to":"知名","dur":58,"km":22.3,"note":"","vias":[{"n":"国頭","o":4},{"n":"西原","o":10},{"n":"喜美留","o":13},{"n":"和中前","o":15},{"n":"ホテルシーワールド","o":17},{"n":"手々知名","o":20},{"n":"和泊","o":21},{"n":"和泊役場","o":23},{"n":"タラソ","o":26},{"n":"Aコープ前","o":29},{"n":"南栄前","o":31},{"n":"皆川入口","o":33},{"n":"皆川","o":35},{"n":"古里","o":37},{"n":"高校前","o":39},{"n":"余多","o":40},{"n":"屋者","o":42},{"n":"ガジマル辻","o":43},{"n":"芦清良","o":44},{"n":"黒貫","o":46},{"n":"知中前","o":47},{"n":"瀬利覚","o":48},{"n":"知名役場前","o":51},{"n":"徳洲会病院","o":53},{"n":"町体前","o":55},{"n":"小米","o":57},{"n":"大蔵医院","o":57}]},{"row":"C","route":"空港線","dep":705,"from":"空港","to":"知名","dur":58,"km":null,"note":"","vias":[{"n":"国頭","o":4},{"n":"西原","o":10},{"n":"喜美留","o":13},{"n":"和中前","o":15},{"n":"ホテルシーワールド","o":17},{"n":"手々知名","o":20},{"n":"和泊","o":21},{"n":"和泊役場","o":23},{"n":"タラソ","o":26},{"n":"Aコープ前","o":29},{"n":"南栄前","o":31},{"n":"皆川入口","o":33},{"n":"皆川","o":35},{"n":"古里","o":37},{"n":"高校前","o":39},{"n":"余多","o":40},{"n":"屋者","o":42},{"n":"ガジマル辻","o":43},{"n":"芦清良","o":44},{"n":"黒貫","o":46},{"n":"知中前","o":47},{"n":"瀬利覚","o":48},{"n":"知名役場前","o":51},{"n":"徳洲会病院","o":53},{"n":"町体前","o":55},{"n":"小米","o":57},{"n":"大蔵医院","o":57}]},{"row":"知名A","route":"空港線","dep":755,"from":"空港","to":"知名","dur":58,"km":null,"note":"","vias":[{"n":"国頭","o":4},{"n":"西原","o":10},{"n":"喜美留","o":13},{"n":"和中前","o":15},{"n":"ホテルシーワールド","o":17},{"n":"手々知名","o":20},{"n":"和泊","o":21},{"n":"和泊役場","o":23},{"n":"タラソ","o":26},{"n":"Aコープ前","o":29},{"n":"南栄前","o":31},{"n":"皆川入口","o":33},{"n":"皆川","o":35},{"n":"古里","o":37},{"n":"高校前","o":39},{"n":"余多","o":40},{"n":"屋者","o":42},{"n":"ガジマル辻","o":43},{"n":"芦清良","o":44},{"n":"黒貫","o":46},{"n":"知中前","o":47},{"n":"瀬利覚","o":48},{"n":"知名役場前","o":51},{"n":"徳洲会病院","o":53},{"n":"町体前","o":55},{"n":"小米","o":57},{"n":"大蔵医院","o":57}]},{"row":"和泊A","route":"空港線","dep":855,"from":"空港","to":"知名","dur":58,"km":null,"note":"","vias":[{"n":"国頭","o":4},{"n":"西原","o":10},{"n":"喜美留","o":13},{"n":"和中前","o":15},{"n":"ホテルシーワールド","o":17},{"n":"手々知名","o":20},{"n":"和泊","o":21},{"n":"和泊役場","o":23},{"n":"タラソ","o":26},{"n":"Aコープ前","o":29},{"n":"南栄前","o":31},{"n":"皆川入口","o":33},{"n":"皆川","o":35},{"n":"古里","o":37},{"n":"高校前","o":39},{"n":"余多","o":40},{"n":"屋者","o":42},{"n":"ガジマル辻","o":43},{"n":"芦清良","o":44},{"n":"黒貫","o":46},{"n":"知中前","o":47},{"n":"瀬利覚","o":48},{"n":"知名役場前","o":51},{"n":"徳洲会病院","o":53},{"n":"町体前","o":55},{"n":"小米","o":57},{"n":"大蔵医院","o":57}]},{"row":"C","route":"空港線","dep":905,"from":"空港","to":"知名","dur":58,"km":null,"note":"","vias":[{"n":"国頭","o":4},{"n":"西原","o":10},{"n":"喜美留","o":13},{"n":"和中前","o":15},{"n":"ホテルシーワールド","o":17},{"n":"手々知名","o":20},{"n":"和泊","o":21},{"n":"和泊役場","o":23},{"n":"タラソ","o":26},{"n":"Aコープ前","o":29},{"n":"南栄前","o":31},{"n":"皆川入口","o":33},{"n":"皆川","o":35},{"n":"古里","o":37},{"n":"高校前","o":39},{"n":"余多","o":40},{"n":"屋者","o":42},{"n":"ガジマル辻","o":43},{"n":"芦清良","o":44},{"n":"黒貫","o":46},{"n":"知中前","o":47},{"n":"瀬利覚","o":48},{"n":"知名役場前","o":51},{"n":"徳洲会病院","o":53},{"n":"町体前","o":55},{"n":"小米","o":57},{"n":"大蔵医院","o":57}]},{"row":"知名A","route":"空港線","dep":1000,"from":"空港","to":"知名","dur":58,"km":null,"note":"","vias":[{"n":"国頭","o":4},{"n":"西原","o":10},{"n":"喜美留","o":13},{"n":"和中前","o":15},{"n":"ホテルシーワールド","o":17},{"n":"手々知名","o":20},{"n":"和泊","o":21},{"n":"和泊役場","o":23},{"n":"タラソ","o":26},{"n":"Aコープ前","o":29},{"n":"南栄前","o":31},{"n":"皆川入口","o":33},{"n":"皆川","o":35},{"n":"古里","o":37},{"n":"高校前","o":39},{"n":"余多","o":40},{"n":"屋者","o":42},{"n":"ガジマル辻","o":43},{"n":"芦清良","o":44},{"n":"黒貫","o":46},{"n":"知中前","o":47},{"n":"瀬利覚","o":48},{"n":"知名役場前","o":51},{"n":"徳洲会病院","o":53},{"n":"町体前","o":55},{"n":"小米","o":57},{"n":"大蔵医院","o":57}]},{"row":"知名デマンド","route":"後蘭線","dep":445,"from":"知名","to":"和泊","dur":59,"km":null,"note":"","vias":[{"n":"大蔵医院","o":1},{"n":"小米","o":1},{"n":"町体前","o":3},{"n":"徳洲会病院","o":5},{"n":"あしびの郷","o":7},{"n":"知名役場前","o":9},{"n":"屋子母","o":12},{"n":"大津勘","o":15},{"n":"徳時","o":17},{"n":"住吉","o":20},{"n":"正名","o":22},{"n":"田皆","o":26},{"n":"新城","o":31},{"n":"新城中","o":32},{"n":"仁志","o":37},{"n":"谷山","o":40},{"n":"後蘭","o":42},{"n":"内城","o":45},{"n":"城中前","o":47},{"n":"大城","o":49},{"n":"玉城","o":52},{"n":"和中央","o":55},{"n":"和","o":56}]},{"row":"知名デマンド","route":"永嶺線","dep":657,"from":"知名","to":"和泊","dur":64,"km":null,"note":"","vias":[{"n":"大蔵医院","o":1},{"n":"小米","o":1},{"n":"町体前","o":3},{"n":"徳洲会病院","o":5},{"n":"あしびの郷","o":7},{"n":"知名役場前","o":9},{"n":"屋子母","o":12},{"n":"屋子母公民館","o":13},{"n":"消防車庫","o":14},{"n":"泉商店前","o":15},{"n":"大津勘","o":16},{"n":"徳時","o":18},{"n":"住吉","o":21},{"n":"正名","o":23},{"n":"田皆","o":27},{"n":"下城","o":32},{"n":"上城","o":37},{"n":"新城","o":39},{"n":"仁志","o":42},{"n":"永嶺","o":45},{"n":"中永嶺","o":46},{"n":"タシキ又","o":48},{"n":"内城","o":50},{"n":"城中前","o":52},{"n":"大城","o":54},{"n":"玉城","o":57},{"n":"和中央","o":60},{"n":"和","o":61}]},{"row":"和泊デマンド","route":"永嶺線","dep":451,"from":"和泊","to":"知名","dur":64,"km":null,"note":"","vias":[{"n":"和","o":3},{"n":"和中央","o":4},{"n":"玉城","o":7},{"n":"大城","o":10},{"n":"城中前","o":12},{"n":"内城","o":14},{"n":"タシキ又","o":16},{"n":"中永嶺","o":18},{"n":"永嶺","o":19},{"n":"仁志","o":22},{"n":"新城","o":25},{"n":"上城","o":27},{"n":"下城","o":32},{"n":"田皆","o":38},{"n":"正名","o":42},{"n":"住吉","o":44},{"n":"徳時","o":47},{"n":"大津勘","o":49},{"n":"泉商店前","o":50},{"n":"消防車庫","o":51},{"n":"屋子母公民館","o":51},{"n":"屋子母","o":52},{"n":"知名役場前","o":54},{"n":"あしびの郷","o":57},{"n":"徳洲会病院","o":59},{"n":"町体前","o":61},{"n":"小米","o":63},{"n":"大蔵医院","o":63}]},{"row":"和泊デマンド","route":"後蘭線","dep":661,"from":"和泊","to":"知名","dur":59,"km":null,"note":"","vias":[{"n":"和","o":3},{"n":"和中央","o":4},{"n":"玉城","o":7},{"n":"大城","o":10},{"n":"城中前","o":12},{"n":"内城","o":14},{"n":"後蘭","o":17},{"n":"谷山","o":19},{"n":"仁志","o":22},{"n":"新城中","o":28},{"n":"新城","o":28},{"n":"田皆","o":33},{"n":"正名","o":37},{"n":"住吉","o":39},{"n":"徳時","o":42},{"n":"大津勘","o":44},{"n":"屋子母","o":47},{"n":"知名役場前","o":49},{"n":"あしびの郷","o":52},{"n":"徳洲会病院","o":54},{"n":"町体前","o":56},{"n":"小米","o":58},{"n":"大蔵医院","o":58}]},{"row":"和泊デマンド","route":"ガジマル線","dep":586,"from":"知名","to":"和泊","dur":50,"km":null,"note":"","vias":[{"n":"大蔵医院","o":1},{"n":"小米","o":1},{"n":"町体前","o":3},{"n":"知名役場前","o":6},{"n":"徳洲会病院","o":8},{"n":"瀬利覚","o":10},{"n":"知中前","o":11},{"n":"黒貫","o":12},{"n":"芦清良","o":14},{"n":"ガジマル辻","o":15},{"n":"下平川","o":16},{"n":"上平川","o":18},{"n":"久志検","o":20},{"n":"赤嶺","o":21},{"n":"竿津","o":22},{"n":"内城","o":27},{"n":"瀬名入口","o":29},{"n":"瀬名","o":30},{"n":"越山","o":32},{"n":"根折","o":34},{"n":"畦布","o":38},{"n":"伊延","o":40},{"n":"出花","o":43},{"n":"上手々知名","o":46},{"n":"和小前","o":47},{"n":"手々知名","o":49}]},{"row":"知名デマンド","route":"ガジマル線","dep":510,"from":"和泊","to":"知名","dur":50,"km":null,"note":"","vias":[{"n":"手々知名","o":1},{"n":"和小前","o":3},{"n":"上手々知名","o":4},{"n":"出花","o":7},{"n":"伊延","o":10},{"n":"畦布","o":12},{"n":"根折","o":16},{"n":"越山","o":18},{"n":"瀬名","o":20},{"n":"瀬名入口","o":21},{"n":"内城","o":23},{"n":"竿津","o":28},{"n":"赤嶺","o":29},{"n":"久志検","o":30},{"n":"上平川","o":32},{"n":"下平川","o":34},{"n":"ガジマル辻","o":35},{"n":"芦清良","o":36},{"n":"黒貫","o":38},{"n":"知中前","o":39},{"n":"瀬利覚","o":40},{"n":"知名役場前","o":43},{"n":"徳洲会病院","o":45},{"n":"町体前","o":47},{"n":"小米","o":49},{"n":"大蔵医院","o":49}]},{"row":"和泊A","route":"回送","dep":450,"from":"和泊","to":"国頭","dur":10,"km":null,"note":"","vias":[]},{"row":"和泊A","route":"回送","dep":1052,"from":"国頭","to":"和泊","dur":10,"km":null,"note":"","vias":[]},{"row":"C","route":"回送","dep":500,"from":"和泊","to":"国頭","dur":10,"km":null,"note":"","vias":[]},{"row":"C","route":"回送","dep":1022,"from":"国頭","to":"和泊","dur":10,"km":null,"note":"","vias":[]},{"row":"和泊デマンド","route":"昼休憩","dep":720,"from":"","to":"","dur":60,"km":null,"note":"","vias":[]},{"row":"和泊デマンド","route":"デマンド","dep":780,"from":"","to":"","dur":300,"km":null,"note":"デマンド運行（13:00営業所出発～18:00帰庫）","vias":[]},{"row":"知名デマンド","route":"昼休憩","dep":725,"from":"","to":"","dur":55,"km":null,"note":"","vias":[]},{"row":"知名デマンド","route":"デマンド","dep":780,"from":"","to":"","dur":300,"km":null,"note":"デマンド運行（13:00営業所出発～18:00帰庫）","vias":[]},{"row":"E","route":"オペレーター","dep":495,"from":"","to":"","dur":540,"km":null,"note":"8:15～17:15 オペレーター対応","vias":[]}];
+const R8_PATS = {"空港線":[{"from":"知名","to":"空港","dur":58,"vias":[{"n":"大蔵医院","o":1},{"n":"小米","o":1},{"n":"町体前","o":3},{"n":"知名役場前","o":6},{"n":"徳洲会病院","o":8},{"n":"瀬利覚","o":10},{"n":"知中前","o":11},{"n":"黒貫","o":12},{"n":"芦清良","o":14},{"n":"ガジマル辻","o":15},{"n":"屋者","o":16},{"n":"余多","o":18},{"n":"高校前","o":19},{"n":"古里","o":21},{"n":"皆川","o":23},{"n":"皆川入口","o":25},{"n":"南栄前","o":27},{"n":"Ａコープ前","o":29},{"n":"タラソ","o":32},{"n":"和泊役場","o":35},{"n":"和泊","o":36},{"n":"手々知名","o":38},{"n":"ホテルシーワールド","o":41},{"n":"和中前","o":43},{"n":"喜美留","o":45},{"n":"西原","o":48},{"n":"国頭","o":54}]},{"from":"空港","to":"知名","dur":58,"vias":[{"n":"国頭","o":4},{"n":"西原","o":10},{"n":"喜美留","o":13},{"n":"和中前","o":15},{"n":"ホテルシーワールド","o":17},{"n":"手々知名","o":20},{"n":"和泊","o":21},{"n":"和泊役場","o":23},{"n":"タラソ","o":26},{"n":"Aコープ前","o":29},{"n":"南栄前","o":31},{"n":"皆川入口","o":33},{"n":"皆川","o":35},{"n":"古里","o":37},{"n":"高校前","o":39},{"n":"余多","o":40},{"n":"屋者","o":42},{"n":"ガジマル辻","o":43},{"n":"芦清良","o":44},{"n":"黒貫","o":46},{"n":"知中前","o":47},{"n":"瀬利覚","o":48},{"n":"知名役場前","o":51},{"n":"徳洲会病院","o":53},{"n":"町体前","o":55},{"n":"小米","o":57},{"n":"大蔵医院","o":57}]}],"国頭線":[{"from":"知名","to":"国頭","dur":52,"vias":[{"n":"大蔵医院","o":1},{"n":"小米","o":1},{"n":"町体前","o":3},{"n":"知名役場前","o":6},{"n":"徳洲会病院","o":8},{"n":"瀬利覚","o":10},{"n":"知中前","o":11},{"n":"黒貫","o":12},{"n":"芦清良","o":14},{"n":"ガジマル辻","o":15},{"n":"屋者","o":16},{"n":"余多","o":18},{"n":"高校前","o":19},{"n":"古里","o":21},{"n":"皆川入口","o":23},{"n":"南栄前","o":25},{"n":"Ａコープ前","o":27},{"n":"タラソ","o":30},{"n":"和泊役場","o":33},{"n":"和泊","o":34},{"n":"手々知名","o":36},{"n":"ホテルシーワールド","o":39},{"n":"和中前","o":41},{"n":"喜美留","o":43},{"n":"西原","o":46}]},{"from":"国頭","to":"知名","dur":52,"vias":[{"n":"西原","o":6},{"n":"喜美留","o":9},{"n":"和中前","o":11},{"n":"ホテルシーワールド","o":13},{"n":"手々知名","o":16},{"n":"和泊","o":17},{"n":"和泊役場","o":19},{"n":"タラソ","o":22},{"n":"Aコープ前","o":25},{"n":"南栄前","o":27},{"n":"皆川入口","o":29},{"n":"古里","o":31},{"n":"高校前","o":33},{"n":"余多","o":34},{"n":"屋者","o":36},{"n":"ガジマル辻","o":37},{"n":"芦清良","o":38},{"n":"黒貫","o":40},{"n":"知中前","o":41},{"n":"瀬利覚","o":42},{"n":"知名役場前","o":45},{"n":"徳洲会病院","o":47},{"n":"町体前","o":49},{"n":"小米","o":51},{"n":"大蔵医院","o":51}]}],"後蘭線":[{"from":"知名","to":"和泊","dur":59,"vias":[{"n":"大蔵医院","o":1},{"n":"小米","o":1},{"n":"町体前","o":3},{"n":"徳洲会病院","o":5},{"n":"あしびの郷","o":7},{"n":"知名役場前","o":9},{"n":"屋子母","o":12},{"n":"大津勘","o":15},{"n":"徳時","o":17},{"n":"住吉","o":20},{"n":"正名","o":22},{"n":"田皆","o":26},{"n":"新城","o":31},{"n":"新城中","o":32},{"n":"仁志","o":37},{"n":"谷山","o":40},{"n":"後蘭","o":42},{"n":"内城","o":45},{"n":"城中前","o":47},{"n":"大城","o":49},{"n":"玉城","o":52},{"n":"和中央","o":55},{"n":"和","o":56}]},{"from":"和泊","to":"知名","dur":59,"vias":[{"n":"和","o":3},{"n":"和中央","o":4},{"n":"玉城","o":7},{"n":"大城","o":10},{"n":"城中前","o":12},{"n":"内城","o":14},{"n":"後蘭","o":17},{"n":"谷山","o":19},{"n":"仁志","o":22},{"n":"新城中","o":28},{"n":"新城","o":28},{"n":"田皆","o":33},{"n":"正名","o":37},{"n":"住吉","o":39},{"n":"徳時","o":42},{"n":"大津勘","o":44},{"n":"屋子母","o":47},{"n":"知名役場前","o":49},{"n":"あしびの郷","o":52},{"n":"徳洲会病院","o":54},{"n":"町体前","o":56},{"n":"小米","o":58},{"n":"大蔵医院","o":58}]}],"永嶺線":[{"from":"知名","to":"和泊","dur":64,"vias":[{"n":"大蔵医院","o":1},{"n":"小米","o":1},{"n":"町体前","o":3},{"n":"徳洲会病院","o":5},{"n":"あしびの郷","o":7},{"n":"知名役場前","o":9},{"n":"屋子母","o":12},{"n":"屋子母公民館","o":13},{"n":"消防車庫","o":14},{"n":"泉商店前","o":15},{"n":"大津勘","o":16},{"n":"徳時","o":18},{"n":"住吉","o":21},{"n":"正名","o":23},{"n":"田皆","o":27},{"n":"下城","o":32},{"n":"上城","o":37},{"n":"新城","o":39},{"n":"仁志","o":42},{"n":"永嶺","o":45},{"n":"中永嶺","o":46},{"n":"タシキ又","o":48},{"n":"内城","o":50},{"n":"城中前","o":52},{"n":"大城","o":54},{"n":"玉城","o":57},{"n":"和中央","o":60},{"n":"和","o":61}]},{"from":"和泊","to":"知名","dur":64,"vias":[{"n":"和","o":3},{"n":"和中央","o":4},{"n":"玉城","o":7},{"n":"大城","o":10},{"n":"城中前","o":12},{"n":"内城","o":14},{"n":"タシキ又","o":16},{"n":"中永嶺","o":18},{"n":"永嶺","o":19},{"n":"仁志","o":22},{"n":"新城","o":25},{"n":"上城","o":27},{"n":"下城","o":32},{"n":"田皆","o":38},{"n":"正名","o":42},{"n":"住吉","o":44},{"n":"徳時","o":47},{"n":"大津勘","o":49},{"n":"泉商店前","o":50},{"n":"消防車庫","o":51},{"n":"屋子母公民館","o":51},{"n":"屋子母","o":52},{"n":"知名役場前","o":54},{"n":"あしびの郷","o":57},{"n":"徳洲会病院","o":59},{"n":"町体前","o":61},{"n":"小米","o":63},{"n":"大蔵医院","o":63}]}],"ガジマル線":[{"from":"知名","to":"和泊","dur":50,"vias":[{"n":"大蔵医院","o":1},{"n":"小米","o":1},{"n":"町体前","o":3},{"n":"知名役場前","o":6},{"n":"徳洲会病院","o":8},{"n":"瀬利覚","o":10},{"n":"知中前","o":11},{"n":"黒貫","o":12},{"n":"芦清良","o":14},{"n":"ガジマル辻","o":15},{"n":"下平川","o":16},{"n":"上平川","o":18},{"n":"久志検","o":20},{"n":"赤嶺","o":21},{"n":"竿津","o":22},{"n":"内城","o":27},{"n":"瀬名入口","o":29},{"n":"瀬名","o":30},{"n":"越山","o":32},{"n":"根折","o":34},{"n":"畦布","o":38},{"n":"伊延","o":40},{"n":"出花","o":43},{"n":"上手々知名","o":46},{"n":"和小前","o":47},{"n":"手々知名","o":49}]},{"from":"和泊","to":"知名","dur":50,"vias":[{"n":"手々知名","o":1},{"n":"和小前","o":3},{"n":"上手々知名","o":4},{"n":"出花","o":7},{"n":"伊延","o":10},{"n":"畦布","o":12},{"n":"根折","o":16},{"n":"越山","o":18},{"n":"瀬名","o":20},{"n":"瀬名入口","o":21},{"n":"内城","o":23},{"n":"竿津","o":28},{"n":"赤嶺","o":29},{"n":"久志検","o":30},{"n":"上平川","o":32},{"n":"下平川","o":34},{"n":"ガジマル辻","o":35},{"n":"芦清良","o":36},{"n":"黒貫","o":38},{"n":"知中前","o":39},{"n":"瀬利覚","o":40},{"n":"知名役場前","o":43},{"n":"徳洲会病院","o":45},{"n":"町体前","o":47},{"n":"小米","o":49},{"n":"大蔵医院","o":49}]}]};
+
+
+DEFAULT_ROUTES.forEach(r => { if(typeof R8_PATS!=="undefined" && R8_PATS[r.name]) r.pats = R8_PATS[r.name]; });
+/* ============ state ============ */
+const uid = () => Math.random().toString(36).slice(2,10);
+const clone = o => JSON.parse(JSON.stringify(o));
+function makePlan(name, base){
+  const p = {id:"p"+Date.now().toString(36)+uid().slice(0,3), name, rows:clone(DEFAULT_ROWS), routes:clone(DEFAULT_ROUTES), events:clone(DEFAULT_EVENTS), runs:[], transferStops:clone(DEFAULT_TS), ver:2, updatedAt:0};
+  if(base==="r8") p.runs = R8_RUNS.map(r=>({...clone(r), id:uid()}));
+  else if(base && typeof base==="object"){ Object.assign(p, clone(base), {id:p.id, name, updatedAt:0}); p.runs.forEach(r=>r.id=uid()); }
+  return p;
+}
+let plans = {};            // id -> plan
+let plan = null;           // current (working copy)
+let selId = null;
+let snap = 5;
+let showAllConn = false;
+let ppm = 2;               // px per minute
+let undo = [], redo = [];
+let dirty = false, saveTimer = null, lastSavedAt = 0;
+let db = null, store = "local";
+let drag = null;
+
+const $ = s => document.querySelector(s);
+const board = $("#board"), wrap = $("#wrap"), side = $("#side"), tip = $("#tip");
+const esc = s => String(s??"").replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const hm = t => { t=Math.round(t); const h=Math.floor(t/60), mi=((t%60)+60)%60; return h+":"+String(mi).padStart(2,"0"); };
+const mm = t => String(((Math.round(t)%60)+60)%60).padStart(2,"0");
+const tstops = () => (plan.transferStops && plan.transferStops.length) ? plan.transferStops : DEFAULT_TS;
+const isKey = n => tstops().includes(n);
+const shownVia = (r,v) => r.vias.length<=4 || isKey(v.n);
+let showAllStops = false;
+const routeOf = name => plan.routes.find(r=>r.name===name) || {name, color:"#FFFFFF", std:60, km:null, kind:"定期", pat:{from:"",to:"",vias:[]}};
+const kmOf = r => r.km!=null && r.km!=="" ? Number(r.km) : (routeOf(r.route).km ?? null);
+const arr = r => r.dep + r.dur;
+const X = t => (t - T0) * ppm;
+
+/* ============ persistence ============ */
+function setStatus(s){ $("#status").textContent = s; }
+function loadLocal(){
+  try{ const raw = localStorage.getItem(LS_KEY); if(raw){ const o = JSON.parse(raw); return o && typeof o==="object" ? o : null; } }catch(e){}
+  return null;
+}
+function saveLocal(){
+  try{ localStorage.setItem(LS_KEY, JSON.stringify({plans, current:plan&&plan.id})); }catch(e){}
+}
+function markDirty(){
+  dirty = true; setStatus("未保存の変更あり");
+  clearTimeout(saveTimer); saveTimer = setTimeout(saveNow, 1200);
+}
+let saving = false;
+async function saveNow(){
+  if(!dirty || !plan) return;
+  if(drag){ saveTimer = setTimeout(saveNow, 800); return; }
+  if(saving){ saveTimer = setTimeout(saveNow, 600); return; }
+  dirty = false; saving = true;
+  plan.updatedAt = Date.now(); lastSavedAt = plan.updatedAt;
+  plans[plan.id] = clone(plan);
+  saveLocal();
+  if(store==="db"){
+    setStatus("保存中…");
+    try{ await db.collection("plans").doc(plan.id).set(clone(plan)); setStatus("保存しました（共有保存）"); }
+    catch(e){
+      if(e && e.code==="unavailable"){ dirty = true; saveTimer=setTimeout(saveNow, 2500); setStatus("再保存を待っています"); }
+      else { store="local"; setStatus("このブラウザに保存しました"); }
+    }
+  } else setStatus("このブラウザに保存しました");
+  saving = false;
+}
+async function initDb(){
+  if(!window.claude || !window.claude.use){ setStatus("このブラウザに保存"); return; }
+  let d = null;
+  try{ d = await window.claude.use("db"); }catch(e){ d=null; }
+  if(!d){ setStatus("このブラウザに保存"); return; }
+  db = d; store = "db";
+  setStatus("共有保存に接続しました");
+  db.collection("plans").onSnapshot(snapq => {
+    let changedCurrent = null;
+    snapq.docs.forEach(doc => {
+      const data = doc.data(); if(!data || !Array.isArray(data.runs)) return;
+      const p = clone(data); p.id = doc.id;
+      plans[doc.id] = p;
+      if(plan && doc.id===plan.id && (p.updatedAt||0) > lastSavedAt) changedCurrent = p;
+    });
+    // drop removed
+    const ids = new Set(snapq.docs.map(d=>d.id));
+    Object.keys(plans).forEach(id => { if(!ids.has(id) && plans[id].updatedAt>0 && (!plan || id!==plan.id || plan.updatedAt>0)) { if(!(plan && id===plan.id && dirty)) delete plans[id]; } });
+    if(plan && !plans[plan.id]) plans[plan.id] = plan;      // unsaved working copy stays listed
+    if(changedCurrent && !dirty && !drag){ plan = changedCurrent; lastSavedAt = plan.updatedAt; render(); }
+    if(plan && plan.updatedAt===0 && snapq.docs.length && !dirty && !(plan._keep && !snapq.docs.some(d=>(d.data()||{}).ver===2))){
+      // first visit had no saved plan, but the store has some: open the newest
+      const newest = Object.values(plans).filter(p=>p.updatedAt>0).sort((a,b)=>b.updatedAt-a.updatedAt)[0];
+      if(newest){ delete plans[plan.id]; plan = clone(newest); lastSavedAt = plan.updatedAt; undo=[]; redo=[]; selId=null; render(); }
+    }
+    fillPlanSel();
+  }, err => { store="local"; setStatus("このブラウザに保存"); });
+}
+
+/* ============ undo ============ */
+function pushUndo(){ undo.push(JSON.stringify(plan)); if(undo.length>120) undo.shift(); redo=[]; updUndo(); }
+function doUndo(){ if(!undo.length) return; redo.push(JSON.stringify(plan)); plan = JSON.parse(undo.pop()); afterChange(); }
+function doRedo(){ if(!redo.length) return; undo.push(JSON.stringify(plan)); plan = JSON.parse(redo.pop()); afterChange(); }
+function updUndo(){ $("#bUndo").disabled=!undo.length; $("#bRedo").disabled=!redo.length; }
+function afterChange(){ markDirty(); render(); updUndo(); }
+
+/* ============ analysis ============ */
+function clashes(){
+  const set = new Set();
+  plan.rows.forEach(row => {
+    const rs = plan.runs.filter(r=>r.row===row).sort((a,b)=>a.dep-b.dep);
+    for(let i=0;i<rs.length;i++) for(let j=i+1;j<rs.length && rs[j].dep < arr(rs[i]);j++){ set.add(rs[i].id); set.add(rs[j].id); }
+  });
+  return set;
+}
+function points(r){
+  const pts = [];
+  if(r.from) pts.push({n:r.from, t:r.dep, k:"発"});
+  r.vias.forEach(v=>{ if(v.n && (r.vias.length<=4 || isKey(v.n))) pts.push({n:v.n, t:r.dep+Number(v.o||0), k:"経由"}); });
+  if(r.to) pts.push({n:r.to, t:arr(r), k:"着"});
+  return pts;
+}
+function connectionsFor(r, win=20){
+  const out = [];
+  const mine = points(r);
+  plan.runs.forEach(o => {
+    if(o.id===r.id || o.row===r.row) return;
+    const op = points(o);
+    mine.forEach(p => op.forEach(q => {
+      if(p.n!==q.n) return;
+      const d = q.t - p.t;
+      if(Math.abs(d) <= win) out.push({p,q,o,d});
+    }));
+  });
+  return out.sort((a,b)=>a.p.t-b.p.t || Math.abs(a.d)-Math.abs(b.d));
+}
+function eventLinks(r){
+  const out = [];
+  points(r).forEach(p => plan.events.forEach(e => {
+    if(e.place !== p.n) return;
+    const send = e.e - p.t;     // bus at stop → departure of plane/ship
+    const meet = p.t - e.s;     // arrival of plane/ship → bus leaves stop
+    if(send >= 0 && send <= 90) out.push({p,e,type:"send",d:send});
+    if(meet >= 0 && meet <= 60) out.push({p,e,type:"meet",d:meet});
+  }));
+  return out;
+}
+function rowTotals(row){
+  const rs = plan.runs.filter(r=>r.row===row);
+  let drive=0, km=0, dead=0, s=Infinity, e=-Infinity;
+  rs.forEach(r => { const rt=routeOf(r.route); const k=kmOf(r)||0;
+    if(rt.kind==="定期"||rt.kind==="回送") drive += r.dur;
+    if(rt.kind==="定期") km += k; if(rt.kind==="回送") dead += k;
+    s=Math.min(s,r.dep); e=Math.max(e,arr(r)); });
+  return {drive, km:Math.round(km*10)/10, dead:Math.round(dead*10)/10, s, e, n:rs.length};
+}
+
+/* ============ rendering ============ */
+function fitPpm(){
+  const avail = wrap.clientWidth - LABEL_W - 16;
+  return Math.max(1.8, Math.min(5, avail/(T1-T0)));
+}
+function render(){
+  if(!plan) return;
+  const W = LABEL_W + (T1-T0)*ppm;
+  const clash = clashes();
+  let h = `<div class="ruler" style="width:${W}px"><div class="corner" style="width:${LABEL_W}px;flex:none">時刻 →</div><div class="ticks" style="width:${(T1-T0)*ppm}px">`;
+  for(let t=T0;t<=T1;t+=30){ const half = t%60!==0; if(half && ppm<1.4) continue;
+    h += `<span class="tick${half?" half":""}" style="left:${X(t)}px">${half?"30":t/60}</span>`; }
+  h += `</div></div>`;
+  // event lane
+  h += `<div class="row evlane" style="width:${W}px;height:${EV_H}px"><div class="lab" style="width:${LABEL_W}px;flex:none"><span class="nm" style="font-size:13px">飛行機・船</span><span class="tot">着〜発の時間帯</span></div><div class="track" style="width:${(T1-T0)*ppm}px">${gridBg()}`;
+  const evs = plan.events.slice().sort((a,b)=>a.s-b.s);
+  const lanes = [];
+  evs.forEach(ev => { const x0=X(ev.s), x1=X(ev.e)+ (String(ev.label).length*12+90); let li = lanes.findIndex(end => end + 8 < x0); if(li<0){li=lanes.length;lanes.push(0);} lanes[li]=x1;
+    h += `<div class="evbar ${ev.kind}" style="left:${X(ev.s)}px;width:${Math.max(6,(ev.e-ev.s)*ppm)}px;top:${4+ (li%3)*23}px" title="${esc(ev.label)} ${hm(ev.s)}着 ${hm(ev.e)}発（${esc(ev.place)}）"><span>${esc(ev.label)} ${hm(ev.s)}–${hm(ev.e)}</span></div>`; });
+  h += `</div></div>`;
+  // rows
+  plan.rows.forEach((row,ri) => {
+    const t = rowTotals(row);
+    h += `<div class="row" data-row="${ri}" style="width:${W}px;height:${ROW_H}px"><div class="lab" style="width:${LABEL_W}px;flex:none"><span class="nm">${esc(row)}</span>`
+      + (t.n ? `<span class="tot">運転 ${t.drive}分 / ${t.km}km${t.dead?`<br>回送 ${t.dead}km`:""}<br>${hm(t.s)}〜${hm(t.e)}</span>` : `<span class="tot">ダブルクリックで追加</span>`)
+      + `</div><div class="track" data-row="${ri}" style="width:${(T1-T0)*ppm}px">${gridBg()}`;
+    plan.runs.filter(r=>r.row===row).forEach(r => { h += runHtml(r, clash.has(r.id)); });
+    h += `</div></div>`;
+  });
+  const H = RULER_H + EV_H + plan.rows.length*ROW_H + plan.rows.length + 2;
+  h += `<svg class="overlay" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${overlaySvg()}</svg>`;
+  h += `<div class="crosshair" id="xh" hidden style="height:${H}px"><b></b></div>`;
+  board.style.width = W+"px"; board.style.height = H+"px";
+  board.innerHTML = h;
+  renderSide(clash);
+  fillPlanSel();
+  updUndo();
+}
+function gridBg(){
+  const hour = 60*ppm, off = 0;
+  const bands = plan.events.map(ev=>`<div class="band ${ev.kind}" style="left:${X(ev.s)}px;width:${Math.max(1,(ev.e-ev.s)*ppm)}px"></div>`).join("");
+  return bands + `<div class="grid" style="background-image:linear-gradient(to right,var(--line-strong) 1px,transparent 1px),linear-gradient(to right,var(--line) 1px,transparent 1px);background-size:${hour}px 100%,${hour/2}px 100%;background-position:${off}px 0,${off}px 0"></div>`;
+}
+function runHtml(r, isClash){
+  const rt = routeOf(r.route);
+  const w = Math.max(4, r.dur*ppm);
+  const narrow = w < 46;
+  const pts = [];
+  if(r.from || r.to || r.vias.length){
+    pts.push({x:0, a:"l", t:r.dep, n:r.from});
+    r.vias.forEach(v => { if(shownVia(r,v)) pts.push({x:Number(v.o||0)*ppm, a:"c", t:r.dep+Number(v.o||0), n:v.n}); });
+    pts.push({x:w, a:"r", t:arr(r), n:r.to});
+  } else { pts.push({x:0,a:"l",t:r.dep,n:""}); pts.push({x:w,a:"r",t:arr(r),n:""}); }
+  const pos = p => p.a==="l" ? `left:2px` : p.a==="r" ? `right:7px` : `left:${p.x}px;transform:translateX(-50%)`;
+  let mins = "", stp = "";
+  const lastX = w;
+  let prevX = -99;
+  pts.forEach((p,i) => {
+    if(narrow && i>0 && i<pts.length-1) return;
+    if(narrow && w<26 && i===pts.length-1) return;
+    const px = p.a==="l" ? 8 : p.a==="r" ? w-8 : p.x;
+    const isLast = i===pts.length-1;
+    if(i>0 && !isLast && (px - prevX < 16 || (lastX-16) - px < 16)) return;
+    prevX = px;
+    mins += `<i style="${pos(p)}">${mm(p.t)}</i>`;
+    if(p.n) stp += `<i style="${pos(p)}">${vtext(p.n)}</i>`;
+  });
+  const k = kmOf(r);
+  const noStops = !r.from && !r.to && !r.vias.length;
+  return `<div class="run${narrow?" narrow":""}${r.id===selId?" sel":""}${isClash?" clash":""}" data-id="${r.id}" style="left:${X(r.dep)}px;width:${w}px;height:${BLOCK_H}px;--c:${esc(rt.color)}" title="${esc(r.route)} ${hm(r.dep)}→${hm(arr(r))}">
+    <div class="mins">${mins}</div>
+    <div class="stp">${stp}${noStops && r.note && !narrow ? `<div class="note">${esc(r.note)}</div>`:""}</div>
+    <div class="foot"><b>${esc(r.route)}</b><span>${r.dur}分${k!=null?` ${k}km`:""}</span></div>
+    <div class="grip" data-grip="1" title="右端をドラッグで所要時間を変更"></div></div>`;
+}
+function vtext(n){
+  let ch=[...String(n)];
+  if(ch.length>3) ch = [ch[0],ch[1],ch[ch.length-1]];   // 4文字以上は「ガジマル辻→ガジ辻」のように縮める
+  const lines=ch.map(c=>esc(c));
+  return lines.join("<br>");
+}
+function ptXY(r, t){
+  const ri = plan.rows.indexOf(r.row);
+  return {x: LABEL_W + X(t), y: RULER_H + EV_H + 1 + ri*(ROW_H+1) + 9 + 15};
+}
+function overlaySvg(){
+  let s = "";
+  const top = RULER_H, H = RULER_H + EV_H + plan.rows.length*(ROW_H+1);
+  const pairs = [];
+  if(showAllConn){
+    const seen = new Set();
+    plan.runs.forEach(r => connectionsFor(r,15).forEach(c => { const key=[r.id,c.o.id,c.p.n].sort().join("|")+Math.min(c.p.t,c.q.t); if(!seen.has(key)){seen.add(key);pairs.push({r,...c});} }));
+  } else if(selId){
+    const r = plan.runs.find(x=>x.id===selId); if(r) connectionsFor(r).forEach(c=>pairs.push({r,...c}));
+  }
+  pairs.forEach(c => {
+    const a = ptXY(c.r,c.p.t), b = ptXY(c.o,c.q.t);
+    const mx = (a.x+b.x)/2, my = (a.y+b.y)/2;
+    s += `<path d="M${a.x},${a.y} C${a.x},${my} ${b.x},${my} ${b.x},${b.y}" fill="none" stroke="var(--ui)" stroke-width="2" stroke-dasharray="5 3"/>`;
+    s += `<circle cx="${a.x}" cy="${a.y}" r="4" fill="var(--ui)"/><circle cx="${b.x}" cy="${b.y}" r="4" fill="var(--ui)"/>`;
+    const lbl = `${c.p.n} ${Math.abs(c.d)}分`;
+    s += `<g transform="translate(${mx},${my})"><rect x="-${lbl.length*6+4}" y="-9" width="${lbl.length*12+8}" height="18" rx="9" fill="var(--ui)"/><text x="0" y="4" text-anchor="middle" font-size="11" fill="var(--ui-ink)" font-weight="700">${esc(lbl)}</text></g>`;
+  });
+  return s;
+}
+
+/* ============ side panel ============ */
+function renderSide(clash){
+  const r = plan.runs.find(x=>x.id===selId);
+  if(!r){ side.innerHTML = helpHtml(clash); bindHelp(); return; }
+  const rt = routeOf(r.route);
+  const routeOpts = plan.routes.map(x=>`<option${x.name===r.route?" selected":""}>${esc(x.name)}</option>`).join("") + (plan.routes.some(x=>x.name===r.route)?"":`<option selected>${esc(r.route)}</option>`);
+  const rowOpts = plan.rows.map(x=>`<option${x===r.row?" selected":""}>${esc(x)}</option>`).join("");
+  let st = `<div class="stoprow"><span class="k">発</span><input data-f="from" value="${esc(r.from)}" placeholder="発地" aria-label="発地"><span class="fixed">${hm(r.dep)}</span><span></span></div>`;
+  const hidden = r.vias.filter(v=>!shownVia(r,v)).length;
+  r.vias.forEach((v,i)=>{ if(!showAllStops && !shownVia(r,v)) return; st += `<div class="stoprow${shownVia(r,v)?"":" minor"}"><span class="k">経</span><input data-v="${i}" data-vf="n" value="${esc(v.n)}" aria-label="経由地${i+1}"><input data-v="${i}" data-vf="o" type="number" min="0" value="${v.o}" title="発車から何分後" aria-label="経由地${i+1}の分後"><button class="x" data-delv="${i}" aria-label="この経由地を削除">×</button></div>`; });
+  if(hidden) st += `<button class="btn" id="tglStops" style="margin:2px 0 6px 26px;font-size:12px">${showAllStops?"乗り継ぎ地点だけ表示":`途中の停留所（${hidden}か所）も表示`}</button>`;
+  st += `<div class="stoprow"><span class="k">着</span><input data-f="to" value="${esc(r.to)}" placeholder="着地" aria-label="着地"><span class="fixed">${hm(arr(r))}</span><span></span></div>`;
+  const conns = connectionsFor(r);
+  const evl = eventLinks(r);
+  let ch = "";
+  evl.forEach(l => {
+    ch += l.type==="send"
+      ? `<div class="conn ${l.e.kind}">${esc(l.p.n)} ${hm(l.p.t)}${l.p.k==="着"?"着":"通過"} → <b>${esc(l.e.label)} ${hm(l.e.e)}発</b>まで ${l.d}分</div>`
+      : `<div class="conn ${l.e.kind}"><b>${esc(l.e.label)} ${hm(l.e.s)}着</b> → ${esc(l.p.n)} ${hm(l.p.t)}発 （${l.d}分後）</div>`;
+  });
+  conns.forEach(c => {
+    const wait = c.d;
+    ch += wait>=0
+      ? `<div class="conn${wait===0?" warn":""}">${esc(c.p.n)} ${hm(c.p.t)} → <b>${esc(c.o.route)}（${esc(c.o.row)}）${hm(c.q.t)}</b> 待ち${wait}分</div>`
+      : `<div class="conn"><b>${esc(c.o.route)}（${esc(c.o.row)}）${hm(c.q.t)}</b> → ${esc(c.p.n)} ${hm(c.p.t)} 待ち${-wait}分</div>`;
+  });
+  side.innerHTML = `
+    <h2><span class="swatch" style="background:${esc(rt.color)}"></span>${esc(r.route)}　${hm(r.dep)}→${hm(arr(r))}</h2>
+    ${clash.has(r.id)?`<p class="alert">同じ系統の別の運行と時間が重なっています。</p>`:""}
+    <div class="fld"><label for="fRow">系統</label><select id="fRow" data-f="row">${rowOpts}</select></div>
+    <div class="fld"><label for="fRoute">路線</label><select id="fRoute" data-f="route">${routeOpts}</select></div>
+    <div class="fld"><label for="fDep">発時刻</label><input id="fDep" type="time" step="60" data-f="dep" value="${String(Math.floor(r.dep/60)).padStart(2,"0")}:${mm(r.dep)}"></div>
+    <div class="nudge" role="group" aria-label="発時刻を動かす"><button class="btn" data-nudge="-5">−5分</button><button class="btn" data-nudge="-1">−1分</button><button class="btn" data-nudge="1">＋1分</button><button class="btn" data-nudge="5">＋5分</button></div>
+    <div class="fld"><label for="fDur">所要（分）</label><input id="fDur" type="number" min="1" data-f="dur" value="${r.dur}"></div>
+    <div class="fld"><label for="fKm">距離（km）</label><input id="fKm" type="number" step="0.1" min="0" data-f="km" value="${r.km??""}" placeholder="標準 ${rt.km??"－"}"></div>
+    <h3>停留所（経由は発車から何分後）</h3>
+    ${st}
+    <div class="btnrow"><button class="btn" id="addVia">経由地を追加</button><button class="btn" id="rev">逆方向にする</button><button class="btn" id="pat">標準の停留所にする</button></div>
+    <div class="fld" style="margin-top:10px"><label for="fNote">メモ</label><input id="fNote" data-f="note" value="${esc(r.note)}" placeholder="停留所がない時は図に表示"></div>
+    <div class="btnrow"><button class="btn" id="dup">複製（Ctrl+D）</button><button class="btn" id="del">削除（Delete）</button><button class="btn" id="desel">選択解除（Esc）</button></div>
+    <h3>接続・乗り継ぎ（前後20分以内）</h3>
+    ${ch || `<p class="muted">同じ停留所で前後20分以内に出入りする他の系統の運行や、飛行機・船の時刻はありません。</p>`}
+    <p class="muted" style="font-size:12px">停留所名が同じものを接続として判定します（例：「和泊」と「和泊」）。空港は飛行機、和泊港・知名港は船と照合します。</p>`;
+  bindSide(r);
+}
+function helpHtml(clash){
+  const nClash = clash.size;
+  return `<h2>使い方</h2>
+  <ul>
+    <li><b>ブロックをドラッグ</b>すると時刻が動きます。上下に動かすと別の系統へ移ります。</li>
+    <li><b>右端をドラッグ</b>すると所要時間が変わります。</li>
+    <li><b>何もない所をダブルクリック</b>（iPadでは<b>長押し</b>）すると、その時刻に運行を追加できます。</li>
+    <li><b>クリック</b>で選ぶと、ここで停留所や時刻を細かく直せます。選んだ運行の乗り継ぎ（同じ停留所で前後20分）が点線で表示されます。</li>
+    <li>選んだ状態で <kbd>←</kbd><kbd>→</kbd> で1分、<kbd>Shift</kbd>を押しながらで5分ずつ動きます（iPadでは編集パネルの「−1分」「＋5分」ボタン）。</li>
+    <li>青・緑の縦の帯は飛行機・船の着〜発の時間です。</li>
+    <li><b>待ち合わせ表</b>で、内城・ガジマル辻などを通る運行を時刻順に並べ、前後の別路線との待ち時間を一覧できます。</li>
+  </ul>
+  ${nClash?`<p class="alert">時間が重なっている運行が ${nClash} 件あります（赤い斜線）。</p>`:""}
+  <h3>この案の集計</h3>
+  ${plan.rows.map(row=>{const t=rowTotals(row);return `<div class="conn" style="border-color:var(--line-strong)"><b>${esc(row)}</b>　${t.n?`運転 ${t.drive}分（${(t.drive/60).toFixed(1)}h）／${t.km}km${t.dead?`／回送 ${t.dead}km`:""}／${hm(t.s)}〜${hm(t.e)}`:"運行なし"}</div>`;}).join("")}
+  <p style="font-size:12px" class="muted">運転時間は区分「定期」「回送」、距離は「定期」を集計しています（路線・色で変更できます）。</p>
+  <h3>Excelとの連携</h3>
+  <p style="font-size:12px">「Excel用CSV」は、運行表Excelの「運行データ」シートと同じ列順で書き出します。開いて黄色の入力欄にそのまま貼り付けられます。</p>`;
+}
+function bindHelp(){}
+function bindSide(r){
+  side.querySelectorAll("[data-nudge]").forEach(b => b.onclick = () => { pushUndo(); r.dep=Math.max(T0,Math.min(T1-r.dur,r.dep+Number(b.dataset.nudge))); afterChange(); });
+  side.querySelectorAll("[data-f]").forEach(el => el.addEventListener("change", () => {
+    pushUndo();
+    const f = el.dataset.f; let v = el.value;
+    if(f==="dep"){ if(!v) return; const [h,mi]=v.split(":").map(Number); r.dep = h*60+mi; }
+    else if(f==="dur"){ r.dur = Math.max(1, Math.round(Number(v)||1)); }
+    else if(f==="km"){ r.km = v==="" ? null : Number(v); }
+    else if(f==="route"){ const old=r.route; r.route=v; if(old!==v){ const rt=routeOf(v); if(rt.std) r.dur=rt.std; } }
+    else r[f] = v;
+    afterChange();
+  }));
+  side.querySelectorAll("[data-v]").forEach(el => el.addEventListener("change", () => {
+    pushUndo(); const i=+el.dataset.v;
+    if(el.dataset.vf==="o") r.vias[i].o = Math.max(0, Math.min(r.dur, Math.round(Number(el.value)||0)));
+    else r.vias[i].n = el.value;
+    r.vias.sort((a,b)=>a.o-b.o); afterChange();
+  }));
+  side.querySelectorAll("[data-delv]").forEach(b => b.addEventListener("click", () => { pushUndo(); r.vias.splice(+b.dataset.delv,1); afterChange(); }));
+  const tg=$("#tglStops"); if(tg) tg.onclick=()=>{ showAllStops=!showAllStops; render(); };
+  $("#addVia").onclick = () => { pushUndo(); r.vias.push({n:"", o:Math.round(r.dur/2)}); r.vias.sort((a,b)=>a.o-b.o); afterChange();
+    setTimeout(()=>{ const ins=[...side.querySelectorAll('[data-vf="n"]')].find(i=>!i.value); ins&&ins.focus(); },0); };
+  $("#rev").onclick = () => { const rt=routeOf(r.route); const pp=(rt.pats||[]).find(x=>x.from===r.to && x.to===r.from);
+    if(pp){ pushUndo(); r.from=pp.from; r.to=pp.to; r.vias=clone(pp.vias); r.dur=pp.dur; afterChange(); return; }
+    pushUndo(); const f=r.from; r.from=r.to; r.to=f; r.vias = r.vias.map(v=>({n:v.n,o:Math.max(0,r.dur-v.o)})).sort((a,b)=>a.o-b.o); afterChange(); };
+  $("#pat").onclick = () => { const rt=routeOf(r.route);
+    const pp=(rt.pats||[]).find(x=>x.from===r.from) || (rt.pats||[])[0];
+    if(pp){ pushUndo(); r.from=pp.from; r.to=pp.to; r.vias=clone(pp.vias); r.dur=pp.dur; afterChange(); return; }
+    pushUndo(); r.from=rt.pat.from; r.to=rt.pat.to; r.vias=clone(rt.pat.vias); if(rt.std) r.dur=rt.std; afterChange(); };
+  $("#dup").onclick = duplicateSel;
+  $("#del").onclick = deleteSel;
+  $("#desel").onclick = () => { selId=null; render(); };
+}
+function duplicateSel(){
+  const r = plan.runs.find(x=>x.id===selId); if(!r) return;
+  pushUndo(); const n = {...clone(r), id:uid(), dep:arr(r)+5}; plan.runs.push(n); selId=n.id; afterChange();
+}
+function deleteSel(){
+  const i = plan.runs.findIndex(x=>x.id===selId); if(i<0) return;
+  pushUndo(); plan.runs.splice(i,1); selId=null; afterChange();
+}
+
+/* ============ pointer interactions ============ */
+function rowAtY(clientY){
+  const tr = [...board.querySelectorAll(".track[data-row]")];
+  for(const el of tr){ const b=el.getBoundingClientRect(); if(clientY>=b.top && clientY<=b.bottom) return +el.dataset.row; }
+  return null;
+}
+function showTip(text, x, y){ tip.textContent=text; tip.hidden=false; tip.style.left=(x+14)+"px"; tip.style.top=(y+14)+"px"; }
+board.addEventListener("pointerdown", e => {
+  const el = e.target.closest(".run"); if(!el || e.button!==0) return;
+  const r = plan.runs.find(x=>x.id===el.dataset.id); if(!r) return;
+  e.preventDefault();
+  drag = {r, mode: e.target.dataset.grip ? "resize" : "move", x0:e.clientX, y0:e.clientY, dep0:r.dep, dur0:r.dur, row0:r.row, moved:false, snapshot:JSON.stringify(plan)};
+});
+let raf = 0;
+window.addEventListener("pointermove", e => {
+  // crosshair
+  const xh = document.getElementById("xh");
+  if(xh){
+    const b = board.getBoundingClientRect(); const x = e.clientX - b.left - LABEL_W;
+    if(x>=0 && x <= (T1-T0)*ppm && e.clientY>=b.top && e.clientY<=b.bottom && !e.target.closest(".lab")){
+      xh.hidden=false; xh.style.left=(LABEL_W+x)+"px"; xh.firstElementChild.textContent = hm(T0 + x/ppm);
+    } else xh.hidden = true;
+  }
+  if(!drag) return;
+  const dx = e.clientX - drag.x0, dy = e.clientY - drag.y0;
+  if(!drag.moved && Math.abs(dx)<4 && Math.abs(dy)<4) return;
+  drag.moved = true;
+  const step = e.altKey ? 1 : snap;
+  const dmin = Math.round(dx/ppm/step)*step;
+  const r = drag.r;
+  if(drag.mode==="move"){
+    r.dep = Math.max(T0, Math.min(T1 - r.dur, drag.dep0 + dmin));
+    const ri = rowAtY(e.clientY); if(ri!=null) r.row = plan.rows[ri];
+    showTip(`${r.row}　${hm(r.dep)} → ${hm(arr(r))}`, e.clientX, e.clientY);
+  } else {
+    r.dur = Math.max(5, Math.min(T1 - r.dep, drag.dur0 + dmin));
+    r.vias.forEach(v=>{ if(v.o>r.dur) v.o=r.dur; });
+    showTip(`所要 ${r.dur}分（${hm(r.dep)} → ${hm(arr(r))}）`, e.clientX, e.clientY);
+  }
+  if(!raf) raf = requestAnimationFrame(()=>{ raf=0; selId = r.id; render(); const el=board.querySelector(`.run[data-id="${r.id}"]`); el&&el.classList.add("dragging"); });
+});
+window.addEventListener("pointerup", () => {
+  if(!drag) return;
+  const d = drag; drag = null; tip.hidden = true;
+  if(d.moved){
+    if(d.r.dep!==d.dep0 || d.r.dur!==d.dur0 || d.r.row!==d.row0){ undo.push(d.snapshot); if(undo.length>120) undo.shift(); redo=[]; markDirty(); }
+    render();
+  } else { selId = d.r.id; if(side.hidden){ side.hidden=false; $("#bSide").classList.add("on"); } render(); }
+});
+board.addEventListener("click", e => {
+  if(e.target.closest(".run")) return;
+  if(e.target.closest(".track") && selId){ selId=null; render(); }
+});
+board.addEventListener("dblclick", e => {
+  if(e.target.closest(".run")) return;
+  const tr = e.target.closest(".track[data-row]"); if(!tr) return;
+  const b = tr.getBoundingClientRect();
+  const t = Math.round((T0 + (e.clientX-b.left)/ppm)/5)*5;
+  openMenu(e.clientX, e.clientY, plan.rows[+tr.dataset.row], t);
+});
+let lp = null;
+board.addEventListener("pointerdown", e => {
+  if(e.pointerType==="mouse" || e.target.closest(".run")) return;
+  const tr = e.target.closest(".track[data-row]"); if(!tr) return;
+  const b = tr.getBoundingClientRect();
+  const x=e.clientX, y=e.clientY, t = Math.round((T0 + (x-b.left)/ppm)/5)*5, row = plan.rows[+tr.dataset.row];
+  clearTimeout(lp && lp.timer);
+  lp = {x,y,timer:setTimeout(()=>{ lp=null; openMenu(x,y,row,t); }, 550)};
+});
+const cancelLp = e => { if(!lp) return; if(e.type!=="pointermove" || Math.hypot(e.clientX-lp.x,e.clientY-lp.y)>10){ clearTimeout(lp.timer); lp=null; } };
+["pointermove","pointerup","pointercancel"].forEach(t=>window.addEventListener(t, cancelLp));
+board.addEventListener("contextmenu", e => { if(e.target.closest(".track")) e.preventDefault(); });
+function openMenu(x,y,row,t){
+  closeMenu();
+  const mnu = document.createElement("div"); mnu.className="menu"; mnu.id="menu";
+  mnu.innerHTML = `<div class="t">${esc(row)}　${hm(t)} に追加</div>` + plan.routes.map((r,i)=>`<button data-i="${i}"><span class="swatch" style="background:${esc(r.color)}"></span>${esc(r.name)}</button>`).join("");
+  document.body.appendChild(mnu);
+  const mb = mnu.getBoundingClientRect();
+  mnu.style.left = Math.min(x, innerWidth-mb.width-8)+"px"; mnu.style.top = Math.min(y, innerHeight-mb.height-8)+"px";
+  mnu.querySelector("button").focus();
+  mnu.addEventListener("click", ev => {
+    const b = ev.target.closest("button"); if(!b) return;
+    const rt = plan.routes[+b.dataset.i];
+    pushUndo();
+    const pp = (rt.pats&&rt.pats[0]) || {from:rt.pat.from,to:rt.pat.to,vias:rt.pat.vias,dur:rt.std||60};
+    const n = {id:uid(), row, route:rt.name, dep:t, dur:pp.dur||rt.std||60, km:null, from:pp.from, to:pp.to, vias:clone(pp.vias), note:""};
+    plan.runs.push(n); selId=n.id; closeMenu(); afterChange();
+  });
+  setTimeout(()=>document.addEventListener("pointerdown", outsideMenu), 0);
+}
+function outsideMenu(e){ if(!e.target.closest("#menu")) closeMenu(); }
+function closeMenu(){ const mnu=$("#menu"); if(mnu) mnu.remove(); document.removeEventListener("pointerdown", outsideMenu); }
+
+document.addEventListener("keydown", e => {
+  const typing = /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName);
+  if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==="z" && !typing){ e.preventDefault(); e.shiftKey?doRedo():doUndo(); return; }
+  if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==="y" && !typing){ e.preventDefault(); doRedo(); return; }
+  if(typing || $("#dlg").open) return;
+  if(e.key==="Escape"){ closeMenu(); if(selId){ selId=null; render(); } return; }
+  const r = plan.runs.find(x=>x.id===selId); if(!r) return;
+  if(e.key==="Delete"||e.key==="Backspace"){ e.preventDefault(); deleteSel(); }
+  else if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==="d"){ e.preventDefault(); duplicateSel(); }
+  else if(e.key==="ArrowLeft"||e.key==="ArrowRight"){ e.preventDefault(); pushUndo(); const s=(e.shiftKey?5:1)*(e.key==="ArrowLeft"?-1:1); r.dep=Math.max(T0,Math.min(T1-r.dur,r.dep+s)); afterChange(); }
+  else if(e.key==="ArrowUp"||e.key==="ArrowDown"){ e.preventDefault(); const i=plan.rows.indexOf(r.row)+(e.key==="ArrowUp"?-1:1); if(i>=0&&i<plan.rows.length){ pushUndo(); r.row=plan.rows[i]; afterChange(); } }
+});
+
+/* ============ plans ============ */
+function fillPlanSel(){
+  const sel = $("#planSel");
+  const list = Object.values(plans).sort((a,b)=>(a.name||"").localeCompare(b.name||"","ja"));
+  sel.innerHTML = list.map(p=>`<option value="${esc(p.id)}"${plan&&p.id===plan.id?" selected":""}>${esc(p.name)}${p.updatedAt?"":"（未保存）"}</option>`).join("");
+}
+$("#planSel").addEventListener("change", e => {
+  saveNow();
+  const p = plans[e.target.value]; if(!p) return;
+  plan = clone(p); lastSavedAt = plan.updatedAt||0; selId=null; undo=[]; redo=[]; render(); saveLocal();
+});
+$("#bNew").onclick = () => {
+  openDialog(`<h2>新しい案</h2>
+    <div class="fld"><label for="npName">案の名前</label><input id="npName" value="案${Object.keys(plans).length+1}"></div>
+    <div class="fld"><label for="npBase">もとにする</label><select id="npBase"><option value="cur">いま開いている案をコピー</option><option value="r8">R8.3.1 現行ダイヤ（時刻表・全停留所）</option><option value="blank">空（運行なし）</option></select></div>
+    <div class="btnrow"><button class="btn primary" id="npOk">作成</button><button class="btn" data-close>やめる</button></div>`);
+  $("#npOk").onclick = () => {
+    const name = $("#npName").value.trim() || "新しい案"; const base = $("#npBase").value;
+    saveNow();
+    const p = base==="cur" ? makePlan(name, plan) : makePlan(name, base==="r8"?"r8":null);
+    plans[p.id]=p; plan=clone(p); selId=null; undo=[]; redo=[]; closeDialog(); markDirty(); render();
+  };
+};
+$("#bRename").onclick = () => {
+  openDialog(`<h2>案の名前を変更</h2><div class="fld"><label for="rnName">名前</label><input id="rnName" value="${esc(plan.name)}"></div>
+    <div class="btnrow"><button class="btn primary" id="rnOk">変更</button><button class="btn" data-close>やめる</button></div>`);
+  $("#rnOk").onclick = () => { const v=$("#rnName").value.trim(); if(v){ plan.name=v; plans[plan.id]=clone(plan); markDirty(); fillPlanSel(); } closeDialog(); };
+};
+$("#bDelPlan").onclick = () => {
+  openDialog(`<h2>「${esc(plan.name)}」を削除しますか？</h2><p>この案の運行はすべて消えます。元に戻せません。</p>
+    <div class="btnrow"><button class="btn primary" id="dpOk" style="background:var(--warn);border-color:var(--warn)">削除する</button><button class="btn" data-close>やめる</button></div>`);
+  $("#dpOk").onclick = async () => {
+    const id = plan.id; delete plans[id]; dirty=false; clearTimeout(saveTimer);
+    if(store==="db"){ try{ await db.collection("plans").doc(id).delete(); }catch(e){} }
+    const rest = Object.values(plans);
+    plan = rest.length ? clone(rest[0]) : makePlan("案1（R8.3.1から）","r8");
+    if(!rest.length) plans[plan.id]=plan;
+    lastSavedAt = plan.updatedAt||0; selId=null; undo=[]; redo=[]; saveLocal(); closeDialog(); render();
+  };
+};
+
+/* ============ dialogs: routes / events / rows ============ */
+const dlg = $("#dlg");
+function openDialog(html){ dlg.innerHTML = html; dlg.showModal(); dlg.querySelectorAll("[data-close]").forEach(b=>b.onclick=closeDialog); }
+function closeDialog(){ dlg.close(); }
+$("#bRoutes").onclick = () => {
+  const rows = plan.routes.map((r,i)=>`<tr data-i="${i}">
+    <td><input type="color" data-k="color" value="${esc(r.color)}" aria-label="色"></td>
+    <td><input data-k="name" value="${esc(r.name)}" aria-label="路線名"></td>
+    <td><input data-k="std" type="number" min="1" value="${r.std??""}" style="width:64px" aria-label="標準所要"></td>
+    <td><input data-k="km" type="number" step="0.1" value="${r.km??""}" style="width:64px" aria-label="標準距離"></td>
+    <td><select data-k="kind" aria-label="区分">${["定期","回送","その他"].map(k=>`<option${k===r.kind?" selected":""}>${k}</option>`).join("")}</select></td>
+    <td>${r.pats&&r.pats.length?`<span class="muted" style="font-size:12px">時刻表の全停留所（${r.pats.map(x=>x.from+"→"+x.to).join("、")}）</span><input data-k="pat" type="hidden" value="">`:`<input data-k="pat" value="${esc(patText(r.pat))}" placeholder="知名 / 和泊+36 / 空港" aria-label="標準の停留所">`}</td>
+    <td><button class="btn" data-del="${i}" aria-label="削除">×</button></td></tr>`).join("");
+  openDialog(`<h2>路線・色</h2>
+    <p class="muted" style="font-size:12px">標準の停留所は「発地 / 経由地+分 / 着地」の形で書きます（例：知名 / 和泊+36 / 空港）。新しく追加する運行と「標準の停留所にする」ボタンで使われます。路線名を変えると、その路線の運行もすべて新しい名前になります。</p>
+    <div class="tblwrap"><table class="tbl"><thead><tr><th>色</th><th>路線名</th><th>標準所要</th><th>標準km</th><th>区分</th><th>標準の停留所</th><th></th></tr></thead><tbody id="rtBody">${rows}</tbody></table></div>
+    <div class="btnrow"><button class="btn" id="rtAdd">路線を追加</button><span style="flex:1"></span><button class="btn primary" id="rtOk">保存</button><button class="btn" data-close>やめる</button></div>`);
+  const body = $("#rtBody");
+  $("#rtAdd").onclick = () => { body.insertAdjacentHTML("beforeend", `<tr data-i="new"><td><input type="color" data-k="color" value="#FFFF99"></td><td><input data-k="name" value="新しい路線"></td><td><input data-k="std" type="number" value="60" style="width:64px"></td><td><input data-k="km" type="number" step="0.1" style="width:64px"></td><td><select data-k="kind"><option>定期</option><option>回送</option><option>その他</option></select></td><td><input data-k="pat"></td><td><button class="btn" data-del="new">×</button></td></tr>`); };
+  body.addEventListener("click", e => { const b=e.target.closest("[data-del]"); if(b) b.closest("tr").remove(); });
+  $("#rtOk").onclick = () => {
+    pushUndo();
+    const next = [];
+    body.querySelectorAll("tr").forEach(tr => {
+      const g = k => tr.querySelector(`[data-k="${k}"]`).value;
+      const old = tr.dataset.i!=="new" ? plan.routes[+tr.dataset.i] : null;
+      const name = g("name").trim(); if(!name) return;
+      const rt = {name, color:g("color"), std: g("std")===""?null:Number(g("std")), km: g("km")===""?null:Number(g("km")), kind:g("kind"), pat:parsePat(g("pat"))};
+      if(old && old.pats) rt.pats = old.pats;
+      if(old && old.name!==name) plan.runs.forEach(r=>{ if(r.route===old.name) r.route=name; });
+      next.push(rt);
+    });
+    plan.routes = next; closeDialog(); afterChange();
+  };
+};
+function patText(p){ if(!p) return ""; const parts=[p.from||""]; (p.vias||[]).forEach(v=>parts.push(`${v.n}+${v.o}`)); parts.push(p.to||""); return (p.from||p.to||(p.vias||[]).length) ? parts.join(" / ") : ""; }
+function parsePat(s){
+  const parts = s.split("/").map(x=>x.trim());
+  if(parts.length<2) return {from:parts[0]||"", to:"", vias:[]};
+  const vias = parts.slice(1,-1).map(x=>{ const mt=x.match(/^(.*?)\+(\d+)$/); return mt?{n:mt[1].trim(),o:+mt[2]}:{n:x,o:0}; });
+  return {from:parts[0], to:parts[parts.length-1], vias};
+}
+$("#bEvents").onclick = () => {
+  const toT = t => `${String(Math.floor(t/60)).padStart(2,"0")}:${mm(t)}`;
+  const tr = (ev,i) => `<tr><td><input data-k="label" value="${esc(ev.label)}" aria-label="名前"></td>
+    <td><select data-k="kind" aria-label="種類"><option value="flight"${ev.kind==="flight"?" selected":""}>飛行機</option><option value="ship"${ev.kind==="ship"?" selected":""}>船</option></select></td>
+    <td><input data-k="place" value="${esc(ev.place)}" aria-label="場所（停留所名）"></td>
+    <td><input data-k="s" type="time" value="${toT(ev.s)}" aria-label="着"></td>
+    <td><input data-k="e" type="time" value="${toT(ev.e)}" aria-label="発"></td>
+    <td><button class="btn" data-del>×</button></td></tr>`;
+  openDialog(`<h2>飛行機・船の時刻</h2>
+    <p class="muted" style="font-size:12px">「場所」には照合したい停留所名を入れます（空港・和泊港 など）。運行の停留所名と一致すると、乗り継ぎ欄に「発便まで◯分」と表示されます。</p>
+    <div class="tblwrap"><table class="tbl"><thead><tr><th>名前</th><th>種類</th><th>場所</th><th>着</th><th>発</th><th></th></tr></thead><tbody id="evBody">${plan.events.map(tr).join("")}</tbody></table></div>
+    <div class="btnrow"><button class="btn" id="evAdd">追加</button><span style="flex:1"></span><button class="btn primary" id="evOk">保存</button><button class="btn" data-close>やめる</button></div>`);
+  const body=$("#evBody");
+  $("#evAdd").onclick = () => body.insertAdjacentHTML("beforeend", tr({label:"",kind:"flight",place:"空港",s:720,e:750}));
+  body.addEventListener("click", e => { if(e.target.closest("[data-del]")) e.target.closest("tr").remove(); });
+  $("#evOk").onclick = () => {
+    pushUndo();
+    plan.events = [...body.querySelectorAll("tr")].map(tr => { const g=k=>tr.querySelector(`[data-k="${k}"]`).value; const tm=v=>{ if(!v) return null; const [h,mi]=v.split(":").map(Number); return h*60+mi; };
+      return {label:g("label"), kind:g("kind"), place:g("place").trim(), s:tm(g("s")), e:tm(g("e"))}; }).filter(e=>e.s!=null && e.e!=null);
+    closeDialog(); afterChange();
+  };
+};
+$("#bRows").onclick = () => {
+  const tr = (n,i) => `<tr data-old="${esc(n)}"><td><input data-k="name" value="${esc(n)}" aria-label="系統名"></td><td><button class="btn" data-up>↑</button> <button class="btn" data-down>↓</button> <button class="btn" data-del>×</button></td></tr>`;
+  openDialog(`<h2>系統（行）</h2>
+    <p class="muted" style="font-size:12px">行の名前・順番を変えられます。行を削除すると、その行の運行も削除されます。</p>
+    <table class="tbl"><tbody id="rwBody">${plan.rows.map(tr).join("")}</tbody></table>
+    <div class="btnrow"><button class="btn" id="rwAdd">行を追加</button><span style="flex:1"></span><button class="btn primary" id="rwOk">保存</button><button class="btn" data-close>やめる</button></div>`);
+  const body=$("#rwBody");
+  $("#rwAdd").onclick = () => body.insertAdjacentHTML("beforeend", `<tr data-old=""><td><input data-k="name" value="新しい行"></td><td><button class="btn" data-up>↑</button> <button class="btn" data-down>↓</button> <button class="btn" data-del>×</button></td></tr>`);
+  body.addEventListener("click", e => { const t=e.target.closest("tr"); if(!t) return;
+    if(e.target.closest("[data-del]")) t.remove();
+    if(e.target.closest("[data-up]") && t.previousElementSibling) t.parentNode.insertBefore(t, t.previousElementSibling);
+    if(e.target.closest("[data-down]") && t.nextElementSibling) t.parentNode.insertBefore(t.nextElementSibling, t); });
+  $("#rwOk").onclick = () => {
+    pushUndo();
+    const list = [...body.querySelectorAll("tr")].map(t=>({old:t.dataset.old, name:t.querySelector("input").value.trim()})).filter(x=>x.name);
+    const names = []; list.forEach(x=>{ let n=x.name; while(names.includes(n)) n+="'"; x.name=n; names.push(n); });
+    const map = {}; list.forEach(x=>{ if(x.old) map[x.old]=x.name; });
+    plan.runs = plan.runs.filter(r=>map[r.row]!==undefined).map(r=>({...r,row:map[r.row]}));
+    plan.rows = names; selId=null; closeDialog(); afterChange();
+  };
+};
+
+/* ============ 待ち合わせ表 ============ */
+let waitStop = "内城", waitWin = 15;
+function passList(stop){
+  const out = [];
+  plan.runs.forEach(r => {
+    const add = (t,k) => out.push({r,t,k});
+    if(r.from===stop) add(r.dep,"発");
+    r.vias.forEach(v => { if(v.n===stop) add(r.dep+Number(v.o||0),"通過"); });
+    if(r.to===stop) add(arr(r),"着");
+  });
+  return out.sort((a,b)=>a.t-b.t);
+}
+function waitTableHtml(){
+  const list = passList(waitStop);
+  const opts = tstops().map(n=>`<option${n===waitStop?" selected":""}>${esc(n)}</option>`).join("");
+  let rows = "";
+  list.forEach((x,i) => {
+    const rt = routeOf(x.r.route);
+    const pairs = list.filter((y,j)=>j!==i && y.r.route!==x.r.route && y.r.row!==x.r.row && Math.abs(y.t-x.t)<=waitWin)
+      .map(y=>{ const d=y.t-x.t; return `<span class="pill${d===0?" zero":""}">${d>=0?"→":"←"} ${esc(y.r.route)} ${hm(y.t)}（${Math.abs(d)}分）</span>`; }).join(" ");
+    rows += `<tr${pairs?' class="hit"':""}><td style="font-weight:700">${hm(x.t)}</td><td><span class="swatch" style="background:${esc(rt.color)}"></span>${esc(x.r.route)}</td><td>${esc(x.r.from)}→${esc(x.r.to)}（${x.k}）</td><td>${esc(x.r.row)}</td><td>${pairs||'<span class="muted">－</span>'}</td><td><button class="btn" data-go="${x.r.id}" style="padding:2px 8px;font-size:12px">選ぶ</button></td></tr>`;
+  });
+  return `<h2>待ち合わせ表</h2>
+    <div class="btnrow" style="align-items:center;margin:0 0 8px">
+      <label for="wStop" class="muted" style="font-size:12px">停留所</label><select id="wStop" class="plan">${opts}</select>
+      <label for="wWin" class="muted" style="font-size:12px">前後</label><select id="wWin" class="plan">${[5,10,15,20,30].map(n=>`<option${n===waitWin?" selected":""}>${n}</option>`).join("")}</select><span class="muted" style="font-size:12px">分以内の別路線を表示</span>
+    </div>
+    <div class="tblwrap"><table class="tbl wt"><thead><tr><th>時刻</th><th>路線</th><th>区間</th><th>系統</th><th>前後の別路線（→あとに来る／←先に来た・時間差）</th><th></th></tr></thead><tbody>${rows||'<tr><td colspan="6" class="muted">この停留所を通る運行はありません。停留所名が運行データと同じか確認してください。</td></tr>'}</tbody></table></div>
+    <h3 style="font-size:13px;margin:14px 0 4px">乗り継ぎを調べる停留所</h3>
+    <div class="btnrow" style="margin:0"><input id="wTs" class="plan" style="flex:1;max-width:none" value="${esc(tstops().join("、"))}" aria-label="乗り継ぎを調べる停留所"><button class="btn" id="wTsOk">変更</button></div>
+    <p class="muted" style="font-size:12px;margin:4px 0 0">「、」区切りで入力します。ここにある停留所がボードのブロックに表示され、乗り継ぎの判定にも使われます。</p>
+    <div class="btnrow"><span style="flex:1"></span><button class="btn" data-close>閉じる</button></div>`;
+}
+function openWait(){
+  openDialog(waitTableHtml());
+  $("#wStop").onchange = e => { waitStop=e.target.value; openWait(); };
+  $("#wWin").onchange = e => { waitWin=+e.target.value; openWait(); };
+  $("#wTsOk").onclick = () => { const v=$("#wTs").value.split(/[、,，\s]+/).map(x=>x.trim()).filter(Boolean); if(!v.length) return; pushUndo(); plan.transferStops=v; if(!v.includes(waitStop)) waitStop=v[0]; afterChange(); openWait(); };
+  dlg.querySelectorAll("[data-go]").forEach(b => b.onclick = () => { selId=b.dataset.go; closeDialog(); render(); const el=board.querySelector(`.run[data-id="${selId}"]`); el&&el.scrollIntoView({block:"nearest",inline:"center"}); });
+}
+$("#bWait").onclick = openWait;
+
+/* ============ export / import / print ============ */
+async function offerFile(filename, data){
+  let dl = null;
+  try{ dl = window.claude && window.claude.use ? await window.claude.use("downloads") : null; }catch(e){}
+  if(!dl){
+    // 通常のブラウザ（Chrome・Edgeなど）で直接開いた場合
+    try{
+      const type = filename.endsWith(".csv") ? "text/csv;charset=utf-8" : "application/json";
+      const url = URL.createObjectURL(new Blob([data], {type}));
+      const a = document.createElement("a"); a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(()=>URL.revokeObjectURL(url), 2000);
+      setStatus("書き出しました");
+    }catch(e){ setStatus("書き出しできませんでした"); }
+    return;
+  }
+  try{ await dl.save({filename, data}); setStatus("書き出しました"); }
+  catch(e){ if(e && e.code==="declined") setStatus("書き出しをやめました"); else if(e && e.code==="rate_limited") setStatus("少し待ってからもう一度押してください"); else setStatus("書き出しできませんでした"); }
+}
+$("#bCsv").onclick = () => {
+  const q = v => { v = v==null ? "" : String(v); return /[",\n]/.test(v) ? `"${v.replace(/"/g,'""')}"` : v; };
+  const head = ["No","系統","路線名","発時刻","発地","経由1","分後","経由2","分後","経由3","分後","経由4","分後","着地","所要分","距離km","備考","着時刻"];
+  const runs = plan.runs.slice().sort((a,b)=>plan.rows.indexOf(a.row)-plan.rows.indexOf(b.row) || a.dep-b.dep);
+  const lines = [head.join(",")];
+  runs.forEach((r,i) => {
+    const v = [i+1, r.row, r.route, hm(r.dep), r.from];
+    const sv = r.vias.filter(x=>shownVia(r,x));
+    for(let k=0;k<4;k++){ const x=sv[k]; v.push(x?x.n:"", x?x.o:""); }
+    v.push(r.to, r.dur, r.km??"", r.note, hm(arr(r)));
+    if(sv.length>4) v[16] = (v[16]?v[16]+" ":"") + "※経由5以降: " + sv.slice(4).map(x=>x.n+"+"+x.o).join(" ");
+    lines.push(v.map(q).join(","));
+  });
+  offerFile(`${plan.name}_運行データ.csv`, "\uFEFF" + lines.join("\r\n"));
+};
+$("#bJson").onclick = () => offerFile(`${plan.name}_バックアップ.json`, JSON.stringify(plan, null, 1));
+$("#bImport").onclick = () => $("#fileIn").click();
+$("#fileIn").addEventListener("change", async e => {
+  const f = e.target.files[0]; if(!f) return;
+  try{
+    const o = JSON.parse(await f.text());
+    if(!o || !Array.isArray(o.runs)) throw 0;
+    const p = makePlan((o.name||"読み込んだ案")+"（読込）", o);
+    p.runs = o.runs.map(r=>({id:uid(), row:String(r.row||""), route:String(r.route||""), dep:Number(r.dep)||T0, dur:Math.max(1,Number(r.dur)||60), km:r.km==null||r.km===""?null:Number(r.km), from:String(r.from||""), to:String(r.to||""), vias:Array.isArray(r.vias)?r.vias.map(v=>({n:String(v.n||""),o:Number(v.o)||0})):[], note:String(r.note||"")}));
+    plans[p.id]=p; plan=clone(p); selId=null; undo=[]; redo=[]; markDirty(); render(); setStatus("読み込みました");
+  }catch(err){ setStatus("このファイルは読み込めません（バックアップのJSONを選んでください）"); }
+  e.target.value = "";
+});
+let printPaper = "A3", printConn = false;
+$("#bPrint").onclick = () => {
+  openDialog(`<h2>カラーで印刷</h2>
+    <div class="fld"><label for="pPaper">用紙</label><select id="pPaper"><option value="A3"${printPaper==="A3"?" selected":""}>A3 横（おすすめ）</option><option value="A4"${printPaper==="A4"?" selected":""}>A4 横</option></select></div>
+    <div class="fld"><label for="pConn">乗り継ぎ線</label><select id="pConn"><option value="0">印刷しない</option><option value="1"${printConn?" selected":""}>すべて印刷する</option></select></div>
+    <p class="muted" style="font-size:12px">運行表は1枚に収まるように縮小されます。印刷画面でプリンターの用紙サイズを同じものに合わせてください。色が出ないときは、印刷画面の「詳細設定」で「背景のグラフィック」にチェックを入れてください。</p>
+    <div class="btnrow"><button class="btn primary" id="pOk">印刷する</button><button class="btn" data-close>やめる</button></div>`);
+  $("#pOk").onclick = () => { printPaper=$("#pPaper").value; printConn=$("#pConn").value==="1"; closeDialog(); setTimeout(doPrint, 80); };
+};
+function doPrint(){
+  const prevPpm=ppm, prevSel=selId, prevConn=showAllConn;
+  selId=null; showAllConn=printConn; ppm=1.8; render();
+  // 見出しと凡例
+  const used = [...new Set(plan.runs.map(r=>r.route))];
+  const d=new Date();
+  $("#printHead").innerHTML = `<h1>${esc(plan.name)}</h1><span>印刷日 ${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}</span>`
+    + `<span class="lg">${used.map(n=>`<span><span class="swatch" style="background:${esc(routeOf(n).color)}"></span>${esc(n)}</span>`).join("")}`
+    + `<span><span class="swatch" style="background:var(--flight)"></span>飛行機</span><span><span class="swatch" style="background:var(--ship)"></span>船</span></span>`;
+  // 用紙に合わせて縮小（余白8mm、96dpi換算）
+  const mmPx = 96/25.4;
+  const pw = (printPaper==="A3" ? 420 : 297) - 16, ph = (printPaper==="A3" ? 297 : 210) - 16;
+  const bw = board.offsetWidth, bh = board.offsetHeight + 40;
+  const scale = Math.min(1, (pw*mmPx)/bw, (ph*mmPx)/bh);
+  let st = document.getElementById("printStyle");
+  if(!st){ st=document.createElement("style"); st.id="printStyle"; document.head.appendChild(st); }
+  st.textContent = `@media print{@page{size:${printPaper} landscape;margin:8mm} #printHead{width:${bw}px;zoom:${scale}} .board{zoom:${scale}}}`;
+  const restore = () => { ppm=prevPpm; selId=prevSel; showAllConn=prevConn; render(); window.removeEventListener("afterprint", restore); };
+  window.addEventListener("afterprint", restore);
+  try{ window.print(); }catch(e){ setStatus("この画面では印刷を開けません。ブラウザ版で開いて印刷してください"); restore(); }
+}
+
+/* ============ toolbar wiring ============ */
+function setSnap(v){ snap=v; $("#bSnap1").classList.toggle("on",v===1); $("#bSnap5").classList.toggle("on",v===5); $("#bSnap1").setAttribute("aria-pressed",v===1); $("#bSnap5").setAttribute("aria-pressed",v===5); }
+$("#bSnap1").onclick=()=>setSnap(1); $("#bSnap5").onclick=()=>setSnap(5);
+$("#bConnAll").onclick=()=>{ showAllConn=!showAllConn; $("#bConnAll").classList.toggle("on",showAllConn); $("#bConnAll").setAttribute("aria-pressed",showAllConn); render(); };
+$("#bSide").onclick=()=>{ const hide=!side.hidden; side.hidden=hide; $("#bSide").classList.toggle("on",!hide); $("#bSide").setAttribute("aria-pressed",!hide); render(); };
+$("#bSide").classList.add("on");
+$("#bUndo").onclick=doUndo; $("#bRedo").onclick=doRedo;
+$("#zoom").addEventListener("input", e => { ppm = Number(e.target.value); render(); });
+let rT; window.addEventListener("resize", () => { clearTimeout(rT); rT=setTimeout(()=>{ if(Math.abs(ppm-fitPpm())<.05 || ppm>fitPpm()+.01){} render(); },150); });
+
+/* ============ boot ============ */
+(function boot(){
+  const loc = loadLocal();
+  if(loc && loc.plans && Object.keys(loc.plans).length){
+    plans = loc.plans;
+    plan = clone(plans[loc.current] || Object.values(plans)[0]);
+    if(!Object.values(plans).some(x=>x.ver===2)){
+      plan = makePlan("案（R8.3.1時刻表・全停留所）","r8"); plan._keep = true; plans[plan.id] = plan;
+    }
+  } else {
+    plan = makePlan("案1（R8.3.1から）","r8"); plan._keep = true;
+    plans[plan.id] = plan;
+  }
+  lastSavedAt = plan.updatedAt||0;
+  ppm = Math.round(fitPpm()*10)/10; $("#zoom").value = ppm;
+  $("#zoom").min = 1;
+  setSnap(5);
+  render();
+  initDb();
+})();
+})();
+</script>
+</body>
+</html>
