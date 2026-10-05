@@ -145,6 +145,12 @@ select.plan{border:1px solid var(--line-strong);border-radius:6px;padding:5px 8p
 .conn.ship{border-color:var(--ship)}
 .conn.warn{border-color:var(--warn)}
 .muted{color:var(--ink-soft)}
+.pal{display:flex;flex-wrap:wrap;gap:6px}
+.pc{width:28px;height:28px;border-radius:6px;border:1.5px solid #555;padding:0;cursor:pointer;position:relative}
+.pc.on{outline:3px solid var(--focus);outline-offset:1px}
+.pc.custom{display:inline-flex;align-items:center;justify-content:center;background:conic-gradient(#f66,#fd6,#6d6,#6cf,#96f,#f6c,#f66);font-weight:700;color:#222;overflow:hidden}
+.pc.custom input{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer;border:0;padding:0}
+@media (pointer:coarse){.pc{width:36px;height:36px}}
 .swatch{display:inline-block;width:12px;height:12px;border-radius:2px;border:1px solid #555;vertical-align:-1px;margin-right:4px}
 .alert{color:var(--warn);font-weight:700;font-size:13px}
 kbd{font-family:inherit;border:1px solid var(--line-strong);border-bottom-width:2px;border-radius:3px;padding:0 4px;font-size:11px;background:var(--paper)}
@@ -263,6 +269,7 @@ const DEFAULT_ROUTES = [
   {name:"昼休憩", color:"#8DB4E2", std:60, km:null, kind:"その他", pat:{from:"",to:"",vias:[]}},
   {name:"オペレーター", color:"#E4DFEC", std:60, km:null, kind:"その他", pat:{from:"",to:"",vias:[]}},
 ];
+const PALETTE = ["#FF99FF", "#B7DEE8", "#FFC000", "#92D050", "#FCE4D6", "#FFFF66", "#FF7C80", "#9BC2E6", "#C9A0DC", "#A9D08E", "#F4B183", "#D9D9D9"];
 const DEFAULT_TS = ["和泊","内城","ガジマル辻","知名","空港","国頭"];
 const DEFAULT_ROWS = ["和泊A","知名A","C","和泊デマンド","知名デマンド","E"];
 const DEFAULT_EVENTS = [
@@ -314,6 +321,7 @@ const isKey = n => tstops().includes(n);
 const shownVia = (r,v) => r.vias.length<=4 || isKey(v.n);
 let showAllStops = false;
 const routeOf = name => plan.routes.find(r=>r.name===name) || {name, color:"#FFFFFF", std:60, km:null, kind:"定期", pat:{from:"",to:"",vias:[]}};
+const colorOf = r => (r && r.color) ? r.color : routeOf(r.route).color;
 const kmOf = r => r.km!=null && r.km!=="" ? Number(r.km) : (routeOf(r.route).km ?? null);
 const arr = r => r.dep + r.dur;
 const X = t => (t - T0) * ppm;
@@ -506,7 +514,7 @@ function runHtml(r, isClash){
   });
   const k = kmOf(r);
   const noStops = !r.from && !r.to && !r.vias.length;
-  return `<div class="run${narrow?" narrow":""}${r.id===selId?" sel":""}${isClash?" clash":""}" data-id="${r.id}" style="left:${X(r.dep)}px;width:${w}px;height:${BLOCK_H}px;--c:${esc(rt.color)}" title="${esc(r.route)} ${hm(r.dep)}→${hm(arr(r))}">
+  return `<div class="run${narrow?" narrow":""}${r.id===selId?" sel":""}${isClash?" clash":""}" data-id="${r.id}" style="left:${X(r.dep)}px;width:${w}px;height:${BLOCK_H}px;--c:${esc(colorOf(r))}" title="${esc(r.route)} ${hm(r.dep)}→${hm(arr(r))}">
     <div class="mins">${mins}</div>
     <div class="stp">${stp}${noStops && r.note && !narrow ? `<div class="note">${esc(r.note)}</div>`:""}</div>
     <div class="foot"><b>${esc(r.route)}</b><span>${r.dur}分${k!=null?` ${k}km`:""}</span></div>
@@ -585,7 +593,7 @@ function renderSide(clash){
       : `<div class="conn"><b>${esc(c.o.route)}（${esc(c.o.row)}）${hm(c.q.t)}</b> → ${esc(c.p.n)} ${hm(c.p.t)} 待ち${-wait}分</div>`;
   });
   side.innerHTML = `
-    <div class="sidehead"><h2><span class="swatch" style="background:${esc(rt.color)}"></span>${esc(r.route)}　${hm(r.dep)}→${hm(arr(r))}</h2><button class="btn" id="edClose" aria-label="編集を閉じる">閉じる ×</button></div>
+    <div class="sidehead"><h2><span class="swatch" style="background:${esc(colorOf(r))}"></span>${esc(r.route)}　${hm(r.dep)}→${hm(arr(r))}</h2><button class="btn" id="edClose" aria-label="編集を閉じる">閉じる ×</button></div>
     ${clash.has(r.id)?`<p class="alert">同じ系統の別の運行と時間が重なっています。</p>`:""}
     <div class="fld"><label for="fRow">系統</label><select id="fRow" data-f="row">${rowOpts}</select></div>
     <div class="fld"><label for="fRoute">路線</label><select id="fRoute" data-f="route">${routeOpts}</select></div>
@@ -596,6 +604,9 @@ function renderSide(clash){
     <h3>停留所（経由は発車から何分後）</h3>
     ${st}
     <div class="btnrow"><button class="btn" id="addVia">経由地を追加</button><button class="btn" id="rev">逆方向にする</button><button class="btn" id="pat">標準の停留所にする</button></div>
+    <h3>この運行の色</h3>
+    <div class="pal" role="group" aria-label="色を選ぶ">${PALETTE.map(c=>`<button class="pc${(r.color||"").toUpperCase()===c?" on":""}" data-col="${c}" style="background:${c}" aria-label="色 ${c}" title="${c}"></button>`).join("")}<label class="pc custom" title="ほかの色を選ぶ"><input type="color" id="fColor" value="${esc(colorOf(r))}" aria-label="ほかの色">＋</label></div>
+    <div class="btnrow" style="margin-top:4px">${r.color?`<button class="btn" id="colReset">路線の色に戻す</button><span class="muted" style="font-size:12px;align-self:center">いまは個別の色です</span>`:`<span class="muted" style="font-size:12px">いまは路線の色（${esc(r.route)}）です。色を選ぶとこの運行だけ変わります。</span>`}</div>
     <div class="fld" style="margin-top:10px"><label for="fNote">メモ</label><input id="fNote" data-f="note" value="${esc(r.note)}" placeholder="停留所がない時は図に表示"></div>
     <div class="btnrow"><button class="btn" id="dup">複製（Ctrl+D）</button><button class="btn" id="del">削除（Delete）</button><button class="btn" id="desel">選択解除（Esc）</button></div>
     <h3>接続・乗り継ぎ（前後20分以内）</h3>
@@ -614,6 +625,7 @@ function helpHtml(clash){
     <li>選んだ状態で <kbd>←</kbd><kbd>→</kbd> で1分、<kbd>Shift</kbd>を押しながらで5分ずつ動きます（iPadでは編集パネルの「−1分」「＋5分」ボタン）。</li>
     <li>青・緑の縦の帯は飛行機・船の着〜発の時間です。</li>
     <li>この「使い方」は右上の「閉じる」で隠せます。上の「使い方」ボタンでまた開けます。運行を選ぶと編集用のパネルが開き、「閉じる」で隠れます。</li>
+    <li>運行を選ぶと、編集パネルの「この運行の色」で<b>その運行だけ色を変えられます</b>（「路線の色に戻す」で元どおり）。路線全体の色は「路線・色」で変えます。</li>
     <li><b>時刻表Excel</b>で、いまの案から停留所ごとの時刻表をExcelで作れます。</li>
     <li><b>待ち合わせ表</b>で、内城・ガジマル辻などを通る運行を時刻順に並べ、前後の別路線との待ち時間を一覧できます。</li>
   </ul>
@@ -658,6 +670,9 @@ function bindSide(r){
   $("#del").onclick = deleteSel;
   $("#desel").onclick = () => { selId=null; render(); };
   $("#edClose").onclick = () => { selId=null; render(); };
+  side.querySelectorAll("[data-col]").forEach(b => b.onclick = () => { pushUndo(); r.color=b.dataset.col; afterChange(); });
+  const fc=$("#fColor"); if(fc) fc.addEventListener("change", () => { pushUndo(); r.color=fc.value.toUpperCase(); afterChange(); });
+  const cr=$("#colReset"); if(cr) cr.onclick = () => { pushUndo(); delete r.color; afterChange(); };
 }
 function duplicateSel(){
   const r = plan.runs.find(x=>x.id===selId); if(!r) return;
@@ -921,7 +936,7 @@ function waitTableHtml(){
     const rt = routeOf(x.r.route);
     const pairs = list.filter((y,j)=>j!==i && y.r.route!==x.r.route && y.r.row!==x.r.row && Math.abs(y.t-x.t)<=waitWin)
       .map(y=>{ const d=y.t-x.t; return `<span class="pill${d===0?" zero":""}">${d>=0?"→":"←"} ${esc(y.r.route)} ${hm(y.t)}（${Math.abs(d)}分）</span>`; }).join(" ");
-    rows += `<tr${pairs?' class="hit"':""}><td style="font-weight:700">${hm(x.t)}</td><td><span class="swatch" style="background:${esc(rt.color)}"></span>${esc(x.r.route)}</td><td>${esc(x.r.from)}→${esc(x.r.to)}（${x.k}）</td><td>${esc(x.r.row)}</td><td>${pairs||'<span class="muted">－</span>'}</td><td><button class="btn" data-go="${x.r.id}" style="padding:2px 8px;font-size:12px">選ぶ</button></td></tr>`;
+    rows += `<tr${pairs?' class="hit"':""}><td style="font-weight:700">${hm(x.t)}</td><td><span class="swatch" style="background:${esc(colorOf(x.r))}"></span>${esc(x.r.route)}</td><td>${esc(x.r.from)}→${esc(x.r.to)}（${x.k}）</td><td>${esc(x.r.row)}</td><td>${pairs||'<span class="muted">－</span>'}</td><td><button class="btn" data-go="${x.r.id}" style="padding:2px 8px;font-size:12px">選ぶ</button></td></tr>`;
   });
   return `<h2>待ち合わせ表</h2>
     <div class="btnrow" style="align-items:center;margin:0 0 8px">
@@ -999,8 +1014,8 @@ async function buildTimetable(){
     if(!runs.length){ const c=ws.getCell(h1,col+1); c.value="（運行なし）"; c.font=F({size:10}); }
     runs.forEach((r,j) => {
       const cc = col+1+j, rt = routeOf(r.route);
-      const a = ws.getCell(h1,cc); a.value=r.route; a.font=F({bold:true,size:10}); a.fill=fill(rt.color); a.border=BOX; a.alignment={horizontal:"center",vertical:"middle",wrapText:true,shrinkToFit:true};
-      const b = ws.getCell(h2,cc); b.value=(r.to||"")+"行"; b.font=F({size:10}); b.fill=fill(rt.color); b.border=BOX; b.alignment={horizontal:"center",shrinkToFit:true};
+      const a = ws.getCell(h1,cc); a.value=r.route; a.font=F({bold:true,size:10}); a.fill=fill(colorOf(r)); a.border=BOX; a.alignment={horizontal:"center",vertical:"middle",wrapText:true,shrinkToFit:true};
+      const b = ws.getCell(h2,cc); b.value=(r.to||"")+"行"; b.font=F({size:10}); b.fill=fill(colorOf(r)); b.border=BOX; b.alignment={horizontal:"center",shrinkToFit:true};
       const c = ws.getCell(h3,cc); c.value=r.row; c.font=F({size:8,color:{argb:"FF5B6A72"}}); c.border=BOX; c.alignment={horizontal:"center",shrinkToFit:true};
     });
     const times = runs.map(runTimes);
@@ -1043,7 +1058,7 @@ async function buildTimetable(){
   plan.rows.forEach(row => {
     plan.runs.filter(r=>r.row===row).sort((a,b)=>a.dep-b.dep).forEach(r => {
       const vals = [row, r.route, r.from||"", r.dep/1440, r.to||"", arr(r)/1440, r.dur, kmOf(r), r.note||""];
-      vals.forEach((v,i)=>{ const c=ws2.getCell(rr,i+1); c.value=(v==null?"":v); c.font=F(); c.border=BOX; if(i===3||i===5){ c.numFmt="h:mm"; c.alignment={horizontal:"center"}; } if(i===1) c.fill=fill(routeOf(r.route).color); });
+      vals.forEach((v,i)=>{ const c=ws2.getCell(rr,i+1); c.value=(v==null?"":v); c.font=F(); c.border=BOX; if(i===3||i===5){ c.numFmt="h:mm"; c.alignment={horizontal:"center"}; } if(i===1) c.fill=fill(colorOf(r)); });
       rr++;
     });
   });
@@ -1122,7 +1137,7 @@ $("#fileIn").addEventListener("change", async e => {
     const o = JSON.parse(await f.text());
     if(!o || !Array.isArray(o.runs)) throw 0;
     const p = makePlan((o.name||"読み込んだ案")+"（読込）", o);
-    p.runs = o.runs.map(r=>({id:uid(), row:String(r.row||""), route:String(r.route||""), dep:Number(r.dep)||T0, dur:Math.max(1,Number(r.dur)||60), km:r.km==null||r.km===""?null:Number(r.km), from:String(r.from||""), to:String(r.to||""), vias:Array.isArray(r.vias)?r.vias.map(v=>({n:String(v.n||""),o:Number(v.o)||0})):[], note:String(r.note||"")}));
+    p.runs = o.runs.map(r=>({id:uid(), row:String(r.row||""), route:String(r.route||""), dep:Number(r.dep)||T0, dur:Math.max(1,Number(r.dur)||60), km:r.km==null||r.km===""?null:Number(r.km), from:String(r.from||""), to:String(r.to||""), vias:Array.isArray(r.vias)?r.vias.map(v=>({n:String(v.n||""),o:Number(v.o)||0})):[], note:String(r.note||""), ...(r.color?{color:String(r.color)}:{})}));
     plans[p.id]=p; plan=clone(p); selId=null; undo=[]; redo=[]; markDirty(); render(); setStatus("読み込みました");
   }catch(err){ setStatus("このファイルは読み込めません（バックアップのJSONを選んでください）"); }
   e.target.value = "";
